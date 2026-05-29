@@ -93,17 +93,6 @@ test("evidence drawer supports Escape close and returns focus to origin", async 
   await expect(page.getByRole("button", { name: /^Close$/ })).not.toBeVisible();
 
   // Focus returns to the originating evidence id control.
-  // Debug: capture active element in failure traces.
-  const active = await page.evaluate(() => {
-    const el = document.activeElement as HTMLElement | null;
-    if (!el) return { tag: "none" };
-    return {
-      tag: el.tagName,
-      origin: el.getAttribute("data-evidence-origin"),
-      text: (el.textContent || "").trim().slice(0, 80),
-    };
-  });
-  console.log("active after close", active);
   await expect(evidenceIdButton).toBeFocused();
 });
 
