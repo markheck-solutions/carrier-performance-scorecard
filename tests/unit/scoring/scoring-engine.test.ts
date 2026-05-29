@@ -43,6 +43,22 @@ describe("scoring engine and read models", () => {
     expect(second).toEqual(first);
   });
 
+  it("orders carrier scorecards by deterministic rank rule (VAL-CARRIER-007)", async () => {
+    const { db } = createTestDb();
+    await seed(db);
+
+    const summary = await readScorecardsSummary(db, { region: null, productType: null, period: null, carrierId: null });
+    expect(summary.carriers.length).toBeGreaterThan(0);
+
+    const sorted = [...summary.carriers].sort((a, b) => {
+      if (a.totalScore !== b.totalScore) return b.totalScore - a.totalScore;
+      if (a.carrier.name !== b.carrier.name) return a.carrier.name.localeCompare(b.carrier.name);
+      return a.carrier.id.localeCompare(b.carrier.id);
+    });
+
+    expect(summary.carriers.map((c) => c.carrier.id)).toEqual(sorted.map((c) => c.carrier.id));
+  });
+
   it("keeps all scores finite and bounded (VAL-SCORE-002)", async () => {
     const { db } = createTestDb();
     await seed(db);

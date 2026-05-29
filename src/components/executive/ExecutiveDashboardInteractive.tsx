@@ -492,7 +492,9 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const [isPending, startTransition] = useTransition();
 
+  const [optionsReloadToken, setOptionsReloadToken] = useState(0);
   const [optionsState, setOptionsState] = useState<LoadState<ScorecardsOptionsModel>>({ status: "loading" });
+  const [summaryReloadToken, setSummaryReloadToken] = useState(0);
   const [summaryState, setSummaryState] = useState<LoadState<ScorecardsSummaryModel>>({
     status: "ready",
     data: props.initialSummary,
@@ -572,6 +574,14 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     });
   }, [updateUrl]);
 
+  // If a carrier filter is applied that excludes the current selection, clear dependent panels deterministically.
+  useEffect(() => {
+    if (!state.filters.carrierId) return;
+    if (!state.selectedCarrierId) return;
+    if (state.filters.carrierId === state.selectedCarrierId) return;
+    updateUrl({ selectedCarrierId: null, evidenceId: null });
+  }, [state.filters.carrierId, state.selectedCarrierId, updateUrl]);
+
   // Load filter options once (carriers + periods). These are used to sanitize deep links.
   useEffect(() => {
     let cancelled = false;
@@ -600,8 +610,16 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       cancelled = true;
       controller.abort();
     };
+  }, [optionsReloadToken]);
+
+  const retryOptions = useCallback(() => {
+    setOptionsState({ status: "loading" });
+    setOptionsReloadToken((prev) => prev + 1);
   }, []);
 
+  const retrySummary = useCallback(() => {
+    setSummaryReloadToken((prev) => prev + 1);
+  }, []);
   // Sanitize invalid URL state by replacing with a clean query string.
   useEffect(() => {
     if (issues.length === 0) return;
@@ -653,7 +671,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     run();
     return () => controller.abort();
-  }, [state.filters, startTransition]);
+  }, [state.filters, startTransition, summaryReloadToken]);
 
   // Fetch carrier detail when selection changes.
   const detailRequestSeq = useRef(0);
@@ -701,7 +719,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     async function run() {
       setEvidenceState({ status: "loading" });
       try {
-        const filterParams = new URLSearchParams(buildFiltersQuery({ ...state.filters, carrierId: null }).slice(1));
+        const filterParams = new URLSearchParams(buildFiltersQuery(state.filters).slice(1));
         filterParams.set("evidenceIds", evidenceId as string);
         const res = await fetch(`/api/evidence?${filterParams.toString()}`, { signal: controller.signal });
         const payload = (await res.json()) as EvidenceReadModel;
@@ -884,13 +902,30 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
               </FilterSelect>
             </div>
 
+            {optionsState.status === "loading" ? (
+              <div className="mt-4 text-xs font-semibold tracking-wide text-white/60" aria-live="polite">
+                Loading filter options…
+              </div>
+            ) : optionsState.status === "error" ? (
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70">
+                {optionsState.message}{" "}
+                <button
+                  type="button"
+                  onClick={retryOptions}
+                  className="ml-2 inline-flex items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+
             {summaryState.status === "error" ? (
               <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70">
                 {summaryState.message}{" "}
                 <button
                   type="button"
                   onClick={() => {
-                    router.refresh();
+                    retrySummary();
                   }}
                   className="ml-2 inline-flex items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                 >
@@ -919,6 +954,19 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 {summaryState.status === "loading" ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/70">
                     Updating comparison…
+                  </div>
+                ) : summaryState.status === "error" ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/35 p-5 text-sm text-white/70">
+                    {summaryState.message}{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        retrySummary();
+                      }}
+                      className="ml-2 inline-flex items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    >
+                      Retry
+                    </button>
                   </div>
                 ) : summary && !hasResults ? (
                   <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
