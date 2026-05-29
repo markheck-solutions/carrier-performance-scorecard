@@ -75,6 +75,18 @@ type LoadState<T> =
   | { status: "ready"; data: T }
   | { status: "error"; message: string };
 
+type DetailLoadState<T> =
+  | { status: "idle" }
+  | { status: "loading"; carrierId: string }
+  | { status: "ready"; carrierId: string; data: T }
+  | { status: "error"; carrierId: string; message: string };
+
+type EvidenceLoadState<T> =
+  | { status: "idle" }
+  | { status: "loading"; requestKey: string }
+  | { status: "ready"; requestKey: string; data: T }
+  | { status: "error"; requestKey: string; message: string };
+
 type EvidenceFocusRestore =
   | { kind: "element"; element: HTMLElement }
   | { kind: "selector"; selector: string };
@@ -233,6 +245,7 @@ function ComparisonCard(props: {
         props.selected ? "border-white/40" : "border-white/10 hover:border-white/20"
       }`}
       aria-pressed={props.selected}
+      data-selected={props.selected ? "true" : "false"}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -240,6 +253,11 @@ function ComparisonCard(props: {
             <span className="rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-semibold text-white/70 ring-1 ring-white/10">
               Rank {props.rank}/{props.total}
             </span>
+            {props.selected ? (
+              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white ring-1 ring-white/25">
+                Selected
+              </span>
+            ) : null}
             <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${gradeTone}`}>
               Grade {props.scorecard.grade} ({props.scorecard.totalScore})
             </span>
@@ -605,8 +623,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     status: "ready",
     data: props.initialSummary,
   });
-  const [detailState, setDetailState] = useState<LoadState<CarrierDetailReadModel>>({ status: "idle" });
-  const [evidenceState, setEvidenceState] = useState<LoadState<EvidenceReadModel>>({ status: "idle" });
+  const [detailState, setDetailState] = useState<DetailLoadState<CarrierDetailReadModel>>({ status: "idle" });
+  const [evidenceState, setEvidenceState] = useState<EvidenceLoadState<EvidenceReadModel>>({ status: "idle" });
   const [evidenceOrigin, setEvidenceOrigin] = useState<EvidenceFocusRestore | null>(null);
 
   const [transientBanner, setTransientBanner] = useState<string | null>(null);
@@ -650,6 +668,13 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   const state = parsed.state;
   const issues = parsed.issues;
 
+  // Keep an eager copy so rapid sequential updates (filter changes, selection changes) don't
+  // accidentally drop earlier patches before the router updates searchParams.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   const issueKey = useMemo(() => issues.map((i) => `${i.kind}:${i.value}`).join("|"), [issues]);
   const issueBannerText = useMemo(() => issueNote(issues), [issues]);
   const issueBanner =
@@ -674,19 +699,21 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const updateUrl = useCallback(
     (next: UrlPatch, opts?: { mode?: "push" | "replace" }) => {
+      const base = stateRef.current;
       const nextState = {
-        filters: { ...state.filters, ...(next.filters ?? {}) },
-        selectedCarrierId: next.selectedCarrierId === undefined ? state.selectedCarrierId : next.selectedCarrierId,
-        evidenceId: next.evidenceId === undefined ? state.evidenceId : next.evidenceId,
-        evidenceDimension: next.evidenceDimension === undefined ? state.evidenceDimension : next.evidenceDimension,
-        evidenceDelayReason: next.evidenceDelayReason === undefined ? state.evidenceDelayReason : next.evidenceDelayReason,
+        filters: { ...base.filters, ...(next.filters ?? {}) },
+        selectedCarrierId: next.selectedCarrierId === undefined ? base.selectedCarrierId : next.selectedCarrierId,
+        evidenceId: next.evidenceId === undefined ? base.evidenceId : next.evidenceId,
+        evidenceDimension: next.evidenceDimension === undefined ? base.evidenceDimension : next.evidenceDimension,
+        evidenceDelayReason: next.evidenceDelayReason === undefined ? base.evidenceDelayReason : next.evidenceDelayReason,
       };
+      stateRef.current = nextState;
       const query = buildDashboardQueryString(nextState);
       const href = query.length > 0 ? `/${query}` : "/";
       if (opts?.mode === "replace") router.replace(href, { scroll: false });
       else router.push(href, { scroll: false });
     },
-    [router, state.evidenceDelayReason, state.evidenceDimension, state.evidenceId, state.filters, state.selectedCarrierId]
+    [router]
   );
 
   const clearSelection = useCallback(() => {
@@ -709,12 +736,17 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     );
   }, [updateUrl]);
 
-  // If a carrier filter is applied that excludes the current selection, clear dependent panels deterministically.
+  // Canonical carrier selection: when a carrier filter is applied, keep selectedCarrierId aligned so detail is populated.
+  // This avoids ambiguous "filtered to one carrier but nothing selected" states in user testing.
   useEffect(() => {
     if (!state.filters.carrierId) return;
-    if (!state.selectedCarrierId) return;
-    if (state.filters.carrierId === state.selectedCarrierId) return;
-    updateUrl({ selectedCarrierId: null, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null });
+    if (state.selectedCarrierId === state.filters.carrierId) return;
+    updateUrl({
+      selectedCarrierId: state.filters.carrierId,
+      evidenceId: null,
+      evidenceDimension: null,
+      evidenceDelayReason: null,
+    }, { mode: "replace" });
   }, [state.filters.carrierId, state.selectedCarrierId, updateUrl]);
 
   // Load filter options once (carriers + periods). These are used to sanitize deep links.
@@ -815,26 +847,27 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     const requestId = ++detailRequestSeq.current;
     const controller = new AbortController();
+    const requestCarrierId = state.selectedCarrierId;
 
     async function run() {
-      setDetailState({ status: "loading" });
+      setDetailState({ status: "loading", carrierId: requestCarrierId });
       try {
         const scoped = buildFiltersQuery({ ...state.filters, carrierId: null });
-        const res = await fetch(`/api/carriers/${state.selectedCarrierId}/scorecard${scoped}`, { signal: controller.signal });
+        const res = await fetch(`/api/carriers/${requestCarrierId}/scorecard${scoped}`, { signal: controller.signal });
         const payload = (await res.json()) as CarrierDetailReadModel;
         if (requestId !== detailRequestSeq.current) return;
         if (!res.ok || !payload.ok) {
           const message =
             (payload as { ok: false; error: { message: string } }).error?.message ??
             "Unable to load carrier detail right now.";
-          setDetailState({ status: "error", message });
+          setDetailState({ status: "error", carrierId: requestCarrierId, message });
           return;
         }
-        setDetailState({ status: "ready", data: payload });
+        setDetailState({ status: "ready", carrierId: requestCarrierId, data: payload });
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         if (requestId !== detailRequestSeq.current) return;
-        setDetailState({ status: "error", message: "Unable to load carrier detail right now." });
+        setDetailState({ status: "error", carrierId: requestCarrierId, message: "Unable to load carrier detail right now." });
       }
     }
 
@@ -865,9 +898,17 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     const requestId = ++evidenceRequestSeq.current;
     const controller = new AbortController();
+    const requestKey = JSON.stringify({
+      mode,
+      evidenceId: state.evidenceId ?? null,
+      evidenceDimension: state.evidenceDimension ?? null,
+      evidenceDelayReason: state.evidenceDelayReason ?? null,
+      evidenceCarrierId,
+      filters: state.filters,
+    });
 
     async function run() {
-      setEvidenceState({ status: "loading" });
+      setEvidenceState({ status: "loading", requestKey });
       try {
         const filterParams = new URLSearchParams(buildFiltersQuery({ ...state.filters, carrierId: evidenceCarrierId }).slice(1));
         if (mode === "id") filterParams.set("evidenceIds", state.evidenceId as string);
@@ -881,7 +922,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
           const message =
             (payload as { ok: false; error: { message: string } }).error?.message ??
             "Unable to load evidence right now.";
-          setEvidenceState({ status: "error", message });
+          setEvidenceState({ status: "error", requestKey, message });
           return;
         }
 
@@ -893,11 +934,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
           return;
         }
 
-        setEvidenceState({ status: "ready", data: payload });
+        setEvidenceState({ status: "ready", requestKey, data: payload });
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         if (requestId !== evidenceRequestSeq.current) return;
-        setEvidenceState({ status: "error", message: "Unable to load evidence right now." });
+        setEvidenceState({ status: "error", requestKey, message: "Unable to load evidence right now." });
       }
     }
 
@@ -911,6 +952,45 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     state.filters,
     state.selectedCarrierId,
     updateUrl,
+  ]);
+
+  const effectiveDetailState = useMemo<LoadState<CarrierDetailReadModel>>(() => {
+    if (!state.selectedCarrierId) return { status: "idle" };
+    if (detailState.status === "loading" && detailState.carrierId === state.selectedCarrierId) return { status: "loading" };
+    if (detailState.status === "error" && detailState.carrierId === state.selectedCarrierId)
+      return { status: "error", message: detailState.message };
+    if (detailState.status === "ready" && detailState.carrierId === state.selectedCarrierId)
+      return { status: "ready", data: detailState.data };
+    // Selection changed but the request state hasn't caught up yet: show loading instead of stale carrier detail.
+    return { status: "loading" };
+  }, [detailState, state.selectedCarrierId]);
+
+  const effectiveEvidenceState = useMemo<LoadState<EvidenceReadModel>>(() => {
+    const mode = state.evidenceId ? "id" : state.evidenceDimension ? "dimension" : state.evidenceDelayReason ? "delayReason" : null;
+    if (!mode) return { status: "idle" };
+    const requestKey = JSON.stringify({
+      mode,
+      evidenceId: state.evidenceId ?? null,
+      evidenceDimension: state.evidenceDimension ?? null,
+      evidenceDelayReason: state.evidenceDelayReason ?? null,
+      evidenceCarrierId,
+      filters: state.filters,
+    });
+
+    if (evidenceState.status === "loading" && evidenceState.requestKey === requestKey) return { status: "loading" };
+    if (evidenceState.status === "error" && evidenceState.requestKey === requestKey)
+      return { status: "error", message: evidenceState.message };
+    if (evidenceState.status === "ready" && evidenceState.requestKey === requestKey)
+      return { status: "ready", data: evidenceState.data };
+    // Evidence scope changed: show loading instead of stale proof items.
+    return { status: "loading" };
+  }, [
+    evidenceCarrierId,
+    evidenceState,
+    state.evidenceDelayReason,
+    state.evidenceDimension,
+    state.evidenceId,
+    state.filters,
   ]);
 
   const summary =
@@ -1020,7 +1100,16 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 id="carrier-filter"
                 label="Carrier"
                 value={state.filters.carrierId ?? ""}
-                onChange={(next) => updateUrl({ filters: { carrierId: next.length > 0 ? next : null } })}
+                onChange={(next) => {
+                  const carrierId = next.length > 0 ? next : null;
+                  updateUrl({
+                    filters: { carrierId },
+                    selectedCarrierId: carrierId,
+                    evidenceId: null,
+                    evidenceDimension: null,
+                    evidenceDelayReason: null,
+                  });
+                }}
               >
                 <option value="">All carriers</option>
                 {optionsState.status === "ready" && optionsState.data.ok
@@ -1213,40 +1302,45 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                   <div className="rounded-2xl border border-white/10 bg-black/35 p-5 text-sm text-white/70">
                     Select a carrier from the comparison list to review its score breakdown.
                   </div>
-                ) : detailState.status === "loading" ? (
+                ) : effectiveDetailState.status === "loading" ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/70">
                     Loading carrier detail…
                   </div>
-                ) : detailState.status === "error" ? (
+                ) : effectiveDetailState.status === "error" ? (
                   <div className="rounded-2xl border border-white/10 bg-black/35 p-5 text-sm text-white/70">
-                    {detailState.message}
+                    {effectiveDetailState.message}
                   </div>
-                ) : detailState.status === "ready" ? (
-                  detailState.data.ok ? (
-                    detailState.data.carrier && detailState.data.scorecard ? (
+                ) : effectiveDetailState.status === "ready" ? (
+                  effectiveDetailState.data.ok ? (
+                    effectiveDetailState.data.carrier && effectiveDetailState.data.scorecard ? (
                       <div>
                         <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 shadow-[0_1px_0_rgba(255,255,255,0.08)]">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                               <div className="text-xs font-semibold tracking-wide text-white/60">Carrier</div>
                               <div className="mt-1 text-lg font-semibold text-white">
-                                {detailState.data.carrier.name}{" "}
-                                <span className="text-white/50">({detailState.data.carrier.shortCode})</span>
+                                {effectiveDetailState.data.carrier.name}{" "}
+                                <span className="text-white/50">({effectiveDetailState.data.carrier.shortCode})</span>
                               </div>
                               <div className="mt-1 text-xs text-white/60">
-                                Tier <span className="font-semibold text-white/75">{detailState.data.carrier.relationshipTier}</span>{" "}
+                                Tier{" "}
+                                <span className="font-semibold text-white/75">
+                                  {effectiveDetailState.data.carrier.relationshipTier}
+                                </span>{" "}
                                 <span className="mx-1 text-white/25" aria-hidden="true">
                                   •
                                 </span>
                                 Region focus{" "}
-                                <span className="font-semibold text-white/75">{detailState.data.carrier.regionFocus.toUpperCase()}</span>
+                                <span className="font-semibold text-white/75">
+                                  {effectiveDetailState.data.carrier.regionFocus.toUpperCase()}
+                                </span>
                                 <span className="mx-1 text-white/25" aria-hidden="true">
                                   •
                                 </span>
                                 Product mix{" "}
                                 <span className="font-semibold text-white/75">
-                                  {detailState.data.scorecard.mix.productTypes[0]
-                                    ? `${formatEnumLabel(detailState.data.scorecard.mix.productTypes[0].productType)} (${Math.round(detailState.data.scorecard.mix.productTypes[0].share * 100)}%)`
+                                  {effectiveDetailState.data.scorecard.mix.productTypes[0]
+                                    ? `${formatEnumLabel(effectiveDetailState.data.scorecard.mix.productTypes[0].productType)} (${Math.round(effectiveDetailState.data.scorecard.mix.productTypes[0].share * 100)}%)`
                                     : "—"}
                                 </span>
                               </div>
@@ -1254,14 +1348,14 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                             <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">
                               <div className="text-[11px] font-semibold tracking-wide text-white/60">Total</div>
                               <div className="mt-1 text-2xl font-semibold tabular-nums text-white">
-                                {detailState.data.scorecard.totalScore}{" "}
+                                {effectiveDetailState.data.scorecard.totalScore}{" "}
                                 <span className="text-sm font-semibold text-white/60">
-                                  Grade {detailState.data.scorecard.grade}
+                                  Grade {effectiveDetailState.data.scorecard.grade}
                                 </span>
                               </div>
-                              {detailState.data.scorecard.confidence.lowVolume ? (
+                              {effectiveDetailState.data.scorecard.confidence.lowVolume ? (
                                 <div className="mt-1 text-xs text-white/60">
-                                  Limited sample size ({detailState.data.scorecard.sampleCount}). Treat this as directional.
+                                  Limited sample size ({effectiveDetailState.data.scorecard.sampleCount}). Treat this as directional.
                                 </div>
                               ) : null}
                             </div>
@@ -1270,7 +1364,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
                         <div className="mt-4">
                           <ScoreBreakdownTable
-                            scorecard={detailState.data.scorecard}
+                            scorecard={effectiveDetailState.data.scorecard}
                             onOpenEvidenceId={(evidenceId) => {
                               captureEvidenceOrigin();
                               updateUrl({ evidenceId, evidenceDimension: null, evidenceDelayReason: null });
@@ -1282,11 +1376,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                           />
                         </div>
                       </div>
-                    ) : detailState.data.carrier && !detailState.data.scorecard ? (
+                    ) : effectiveDetailState.data.carrier && !effectiveDetailState.data.scorecard ? (
                       <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
                         <div className="text-sm font-semibold text-white">No records in this scope</div>
                         <div className="mt-2 text-sm leading-6 text-white/70">
-                          {detailState.data.message ?? "This carrier has no records under the selected filters."}
+                          {effectiveDetailState.data.message ?? "This carrier has no records under the selected filters."}
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                           <button
@@ -1309,7 +1403,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                       <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
                         <div className="text-sm font-semibold text-white">Unknown carrier</div>
                         <div className="mt-2 text-sm leading-6 text-white/70">
-                          {detailState.data.message ?? "This carrier id does not exist in the fictional dataset."}
+                          {effectiveDetailState.data.message ?? "This carrier id does not exist in the fictional dataset."}
                         </div>
                         <div className="mt-4">
                           <button
@@ -1324,7 +1418,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                     )
                   ) : (
                     <div className="rounded-2xl border border-white/10 bg-black/35 p-5 text-sm text-white/70">
-                      {detailState.data.error.message}
+                      {effectiveDetailState.data.error.message}
                     </div>
                   )
                 ) : (
@@ -1343,7 +1437,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
         title={evidenceRequestLabel()}
         subtitle={evidenceRequestSubtitle()}
         origin={evidenceOrigin}
-        state={evidenceState}
+        state={effectiveEvidenceState}
         onClose={() => updateUrl({ evidenceId: null, evidenceDimension: null, evidenceDelayReason: null }, { mode: "replace" })}
       />
     </div>

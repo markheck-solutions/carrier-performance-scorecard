@@ -120,6 +120,7 @@ export function ExecutiveDashboard(props: {
   onOpenEvidenceForGovernanceItem?: (carrierId: string, dimension: ScoringComponentId) => void;
 }) {
   const model = props.summary;
+  const hasResults = model.counts.deliveryRecords > 0;
   const portfolio = portfolioHealth(model.carriers);
   const grades = gradeCounts(model.carriers);
   const onTime = commitmentOnTimeRate(model.carriers);
@@ -223,7 +224,7 @@ export function ExecutiveDashboard(props: {
               </div>
 
               <div className="lg:col-span-5">
-                {derived ? (
+                {hasResults ? (
                   <HealthSpectrum
                     scorecards={derived.model.carriers}
                     portfolioScore={derived.portfolio.score}
@@ -231,21 +232,10 @@ export function ExecutiveDashboard(props: {
                   />
                 ) : (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_1px_0_rgba(255,255,255,0.06)]">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-white">Carrier health spectrum</div>
-                        <div className="mt-2 space-y-2">
-                          <SkeletonLine className="w-64" />
-                          <SkeletonLine className="w-56" />
-                        </div>
-                      </div>
-                      <div className="h-6 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                    </div>
-                    <div className="mt-6 h-14 rounded-xl bg-white/5" aria-hidden="true" />
-                    <div className="mt-3 flex gap-2">
-                      <div className="h-6 w-20 rounded-full bg-white/10" aria-hidden="true" />
-                      <div className="h-6 w-20 rounded-full bg-white/10" aria-hidden="true" />
-                      <div className="h-6 w-20 rounded-full bg-white/10" aria-hidden="true" />
+                    <div className="text-sm font-semibold text-white">No carriers in this scope</div>
+                    <div className="mt-2 text-sm leading-6 text-white/70">
+                      These filters remove all delivery records, so there is nothing to grade or rank. Broaden scope or use Reset in
+                      Scope controls.
                     </div>
                   </div>
                 )}
@@ -258,33 +248,40 @@ export function ExecutiveDashboard(props: {
           </header>
 
           <section aria-label="Leadership KPIs">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <Kpi
-                label="Portfolio health"
-                value={`${derived.portfolio.grade} (${derived.portfolio.score})`}
-                detail={`${derived.model.counts.carriers} carriers in scope`}
-              />
-              <Kpi
-                label="Governance attention"
-                value={`${derived.governanceCount}`}
-                detail="Carriers graded D or F in the current window"
-              />
-              <Kpi
-                label="Commitment on-time"
-                value={formatPercent(derived.onTime.rate)}
-                detail={`${derived.onTime.onTime}/${derived.onTime.completed} completed deliveries`}
-              />
-              <Kpi
-                label="Low-confidence reads"
-                value={`${derived.lowConfidence}`}
-                detail="Limited sample size in the current scope"
-              />
-              <Kpi
-                label="Evidence items"
-                value={`${derived.model.counts.evidenceItems}`}
-                detail={`${derived.model.counts.deliveryRecords} delivery records`}
-              />
-            </div>
+            {hasResults ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Kpi
+                  label="Portfolio health"
+                  value={`${derived.portfolio.grade} (${derived.portfolio.score})`}
+                  detail={`${derived.model.counts.carriers} carriers in scope`}
+                />
+                <Kpi
+                  label="Governance attention"
+                  value={`${derived.governanceCount}`}
+                  detail="Carriers graded D or F in the current window"
+                />
+                <Kpi
+                  label="Commitment on-time"
+                  value={formatPercent(derived.onTime.rate)}
+                  detail={`${derived.onTime.onTime}/${derived.onTime.completed} completed deliveries`}
+                />
+                <Kpi
+                  label="Low-confidence reads"
+                  value={`${derived.lowConfidence}`}
+                  detail="Limited sample size in the current scope"
+                />
+                <Kpi
+                  label="Evidence items"
+                  value={`${derived.model.counts.evidenceItems}`}
+                  detail={`${derived.model.counts.deliveryRecords} delivery records`}
+                />
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-black/35 p-5 text-sm text-white/70">
+                No KPIs are available because this scope contains zero delivery records. Broaden filters or use Reset to restore the
+                executive view.
+              </div>
+            )}
           </section>
 
           {props.comparisonAndDetail ? (
@@ -297,18 +294,18 @@ export function ExecutiveDashboard(props: {
                 title="Best performer"
                 subtitle="Strongest fictional carrier in this scope, with the most consistent signal mix."
                 right={
-                  best && derived ? (
+                  hasResults && best ? (
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(best.grade).className}`}>
                       {best.grade} {gradeTone(best.grade).label}
                     </span>
                   ) : (
                     <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70 ring-1 ring-white/10">
-                      Loading
+                      No results
                     </span>
                   )
                 }
               >
-                {best ? (
+                {hasResults && best ? (
                   <div>
                     <div className="text-lg font-semibold text-white">
                       {best.carrier.name} <span className="text-white/50">({best.carrier.shortCode})</span>
@@ -324,15 +321,8 @@ export function ExecutiveDashboard(props: {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <SkeletonLine className="w-56" />
-                    <SkeletonLine className="w-full" />
-                    <SkeletonLine className="w-2/3" />
-                    <div className="mt-4 flex gap-2">
-                      <div className="h-7 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                      <div className="h-7 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                      <div className="h-7 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                    </div>
+                  <div className="text-sm leading-6 text-white/70">
+                    No carriers are ranked in this scope. Broaden filters or use Reset to restore comparison and detail.
                   </div>
                 )}
               </Panel>
@@ -343,18 +333,18 @@ export function ExecutiveDashboard(props: {
                 title="Needs governance attention"
                 subtitle="Lowest-scoring fictional carrier in this scope. Use this to prioritize leadership discussion."
                 right={
-                  worst && derived ? (
+                  hasResults && worst ? (
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(worst.grade).className}`}>
                       {worst.grade} {gradeTone(worst.grade).label}
                     </span>
                   ) : (
                     <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70 ring-1 ring-white/10">
-                      Loading
+                      No results
                     </span>
                   )
                 }
               >
-                {worst ? (
+                {hasResults && worst ? (
                   <div>
                     <div className="text-lg font-semibold text-white">
                       {worst.carrier.name} <span className="text-white/50">({worst.carrier.shortCode})</span>
@@ -370,15 +360,8 @@ export function ExecutiveDashboard(props: {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <SkeletonLine className="w-64" />
-                    <SkeletonLine className="w-full" />
-                    <SkeletonLine className="w-3/4" />
-                    <div className="mt-4 flex gap-2">
-                      <div className="h-7 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                      <div className="h-7 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                      <div className="h-7 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                    </div>
+                  <div className="text-sm leading-6 text-white/70">
+                    No carriers are ranked in this scope. Broaden filters or use Reset to restore the executive signal panels.
                   </div>
                 )}
               </Panel>
@@ -389,7 +372,7 @@ export function ExecutiveDashboard(props: {
                 title="Governance attention list"
                 subtitle="Action-oriented items that bring focus to the next QBR discussion."
               >
-                {derived ? (
+                {hasResults ? (
                   <ol className="space-y-3">
                     {derived.attention.map((item) => (
                       <li key={item.carrierId} className="rounded-xl border border-white/10 bg-black/30 p-4">
@@ -432,19 +415,8 @@ export function ExecutiveDashboard(props: {
                     ))}
                   </ol>
                 ) : (
-                  <div className="space-y-3">
-                    {Array.from({ length: 3 }).map((_, idx) => (
-                      <div key={idx} className="rounded-xl border border-white/10 bg-black/30 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="h-4 w-40 rounded bg-white/10" aria-hidden="true" />
-                          <div className="h-6 w-28 rounded-full bg-white/10" aria-hidden="true" />
-                        </div>
-                        <div className="mt-3 space-y-2">
-                          <SkeletonLine className="w-full" />
-                          <SkeletonLine className="w-2/3" />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="text-sm leading-6 text-white/70">
+                    No governance signals are available because this scope contains zero delivery records. Broaden filters or use Reset.
                   </div>
                 )}
               </Panel>
@@ -453,7 +425,7 @@ export function ExecutiveDashboard(props: {
             <div className="lg:col-span-5">
               <div className="grid grid-cols-1 gap-6">
                 <Panel title="Trend direction" subtitle="Momentum label is shown with text, not color alone.">
-                  {derived ? (
+                  {hasResults ? (
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="text-2xl font-semibold tabular-nums text-white">
@@ -484,16 +456,15 @@ export function ExecutiveDashboard(props: {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      <div className="h-8 w-36 rounded bg-white/10" aria-hidden="true" />
-                      <SkeletonLine className="w-full" />
-                      <SkeletonLine className="w-2/3" />
+                    <div className="text-sm leading-6 text-white/70">
+                      Trend is unavailable because this scope contains zero delivery records. Broaden filters or use Reset to restore
+                      momentum signals.
                     </div>
                   )}
                 </Panel>
 
                 <Panel title="Delay concentration" subtitle="Top delay reasons plus region and product concentration signals.">
-                  {derived ? (
+                  {hasResults ? (
                     <div className="space-y-4">
                       <div>
                         <div className="text-xs font-semibold tracking-wide text-white/60">Top delay reasons</div>
@@ -552,17 +523,9 @@ export function ExecutiveDashboard(props: {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      <SkeletonLine className="w-40" />
-                      <div className="space-y-2">
-                        <div className="h-3 w-full rounded bg-white/10" aria-hidden="true" />
-                        <div className="h-3 w-full rounded bg-white/10" aria-hidden="true" />
-                        <div className="h-3 w-full rounded bg-white/10" aria-hidden="true" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="h-16 rounded-xl bg-white/5" aria-hidden="true" />
-                        <div className="h-16 rounded-xl bg-white/5" aria-hidden="true" />
-                      </div>
+                    <div className="text-sm leading-6 text-white/70">
+                      Delay concentration is unavailable because this scope contains zero delivery records. Broaden filters or use Reset to
+                      restore delay insights.
                     </div>
                   )}
                 </Panel>
