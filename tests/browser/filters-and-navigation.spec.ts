@@ -174,8 +174,15 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await page.getByLabel("Region").selectOption("emea");
   await page.getByLabel("Product type").selectOption("fiber");
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
-  await firstCard.click();
+  // Pick a carrier that has a scorecard under this scope to ensure score-component proof entry points exist.
+  const summaryRes = await page.request.get("/api/scorecards/summary?region=emea&productType=fiber");
+  expect(summaryRes.ok()).toBeTruthy();
+  const summary = (await summaryRes.json()) as { ok: boolean; carriers?: Array<{ carrier: { id: string } }> };
+  expect(summary.ok).toBeTruthy();
+  const carrierId = summary.carriers?.[0]?.carrier.id;
+  expect(carrierId).toBeTruthy();
+
+  await page.goto(`/?region=emea&productType=fiber&selectedCarrierId=${carrierId}`);
   await expect(page).toHaveURL(/selectedCarrierId=/);
 
   const componentProof = page.locator('[data-evidence-origin^="dimension:"]').first();
