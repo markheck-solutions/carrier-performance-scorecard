@@ -141,6 +141,7 @@ function issueNote(issues: ReturnType<typeof parseDashboardStateFromSearchParams
   if (first.kind === "invalid_evidenceId") return "The requested evidence link was not recognized and was reset.";
   if (first.kind === "invalid_evidenceDimension" || first.kind === "invalid_evidenceDelayReason")
     return "The requested evidence scope was not recognized and was reset.";
+  if (first.kind === "conflicting_evidenceScope") return "This proof link contained conflicting parameters and was reset to a single evidence scope.";
   return "Some URL parameters were not recognized and were reset.";
 }
 
@@ -552,6 +553,26 @@ function EvidencePanel(props: {
                       <p className="mt-2 text-sm leading-6 text-white/70">{item.summary}</p>
                       <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/60 sm:grid-cols-4">
                         <div>
+                          <div className="font-semibold text-white/75">Carrier</div>
+                          <div>{item.carrierName}</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-white/75">Period</div>
+                          <div className="tabular-nums">{item.period}</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-white/75">Region</div>
+                          <div>{item.region.toUpperCase()}</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-white/75">Product</div>
+                          <div>{formatEnumLabel(item.productType)}</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-white/75">Stage</div>
+                          <div>{formatEnumLabel(item.stage)}</div>
+                        </div>
+                        <div>
                           <div className="font-semibold text-white/75">Delay reason</div>
                           <div>{item.delayReason}</div>
                         </div>
@@ -629,6 +650,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const [transientBanner, setTransientBanner] = useState<string | null>(null);
   const [dismissedIssueKey, setDismissedIssueKey] = useState<string | null>(null);
+  const lastAutoRecoveryKey = useRef<string | null>(null);
 
   const captureEvidenceOrigin = useCallback(() => {
     const active = document.activeElement;
@@ -667,6 +689,16 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const state = parsed.state;
   const issues = parsed.issues;
+  const { carrierId, region, productType, period } = state.filters;
+  const stableFilters = useMemo<ScoreFilters>(
+    () => ({
+      carrierId,
+      region,
+      productType,
+      period,
+    }),
+    [carrierId, period, productType, region]
+  );
 
   // Keep an eager copy so rapid sequential updates (filter changes, selection changes) don't
   // accidentally drop earlier patches before the router updates searchParams.
@@ -795,10 +827,16 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     const currentQuery = searchParams.toString();
     const current = currentQuery.length > 0 ? `?${currentQuery}` : "";
     if (sanitizedQuery !== current) {
+      const note = issueNote(issues);
+      if (!transientBanner && note && issueKey.length > 0 && lastAutoRecoveryKey.current !== issueKey) {
+        lastAutoRecoveryKey.current = issueKey;
+        // Promote the recovery note to a transient banner so it remains visible after we replace the URL.
+        setTransientBanner(note);
+      }
       const href = sanitizedQuery.length > 0 ? `/${sanitizedQuery}` : "/";
       router.replace(href, { scroll: false });
     }
-  }, [issues, router, searchParams, state]);
+  }, [issues, issueKey, router, searchParams, state, transientBanner]);
 
   // Fetch summary whenever filters change.
   const summaryRequestSeq = useRef(0);
@@ -816,7 +854,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       });
 
       try {
-        const res = await fetch(`/api/scorecards/summary${buildFiltersQuery(state.filters)}`, { signal: controller.signal });
+        const res = await fetch(`/api/scorecards/summary${buildFiltersQuery(stableFilters)}`, { signal: controller.signal });
         const payload = (await res.json()) as ScorecardsSummaryModel | { ok: false; error?: { message?: string } };
 
         if (requestId !== summaryRequestSeq.current) return;
@@ -838,7 +876,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     run();
     return () => controller.abort();
-  }, [state.filters, startTransition, summaryReloadToken]);
+  }, [stableFilters, startTransition, summaryReloadToken]);
 
   // Fetch carrier detail when selection changes.
   const detailRequestSeq = useRef(0);
@@ -852,7 +890,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     async function run() {
       setDetailState({ status: "loading", carrierId: requestCarrierId });
       try {
-        const scoped = buildFiltersQuery({ ...state.filters, carrierId: null });
+        const scoped = buildFiltersQuery({ ...stableFilters, carrierId: null });
         const res = await fetch(`/api/carriers/${requestCarrierId}/scorecard${scoped}`, { signal: controller.signal });
         const payload = (await res.json()) as CarrierDetailReadModel;
         if (requestId !== detailRequestSeq.current) return;
@@ -873,7 +911,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     run();
     return () => controller.abort();
-  }, [state.selectedCarrierId, state.filters]);
+  }, [stableFilters, state.selectedCarrierId]);
 
   const evidenceCarrierId = state.selectedCarrierId ?? state.filters.carrierId ?? null;
 
@@ -904,13 +942,13 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       evidenceDimension: state.evidenceDimension ?? null,
       evidenceDelayReason: state.evidenceDelayReason ?? null,
       evidenceCarrierId,
-      filters: state.filters,
+      filters: stableFilters,
     });
 
     async function run() {
       setEvidenceState({ status: "loading", requestKey });
       try {
-        const filterParams = new URLSearchParams(buildFiltersQuery({ ...state.filters, carrierId: evidenceCarrierId }).slice(1));
+        const filterParams = new URLSearchParams(buildFiltersQuery({ ...stableFilters, carrierId: evidenceCarrierId }).slice(1));
         if (mode === "id") filterParams.set("evidenceIds", state.evidenceId as string);
         if (mode === "dimension") filterParams.set("dimension", state.evidenceDimension as string);
         if (mode === "delayReason") filterParams.set("delayReason", state.evidenceDelayReason as string);
@@ -949,8 +987,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     state.evidenceDelayReason,
     state.evidenceDimension,
     state.evidenceId,
-    state.filters,
-    state.selectedCarrierId,
+    stableFilters,
     updateUrl,
   ]);
 
@@ -974,7 +1011,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       evidenceDimension: state.evidenceDimension ?? null,
       evidenceDelayReason: state.evidenceDelayReason ?? null,
       evidenceCarrierId,
-      filters: state.filters,
+      filters: stableFilters,
     });
 
     if (evidenceState.status === "loading" && evidenceState.requestKey === requestKey) return { status: "loading" };
@@ -990,7 +1027,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     state.evidenceDelayReason,
     state.evidenceDimension,
     state.evidenceId,
-    state.filters,
+    stableFilters,
   ]);
 
   const summary =

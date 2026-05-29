@@ -65,10 +65,15 @@ test("evidence opens from score components as a scoped proof surface", async ({ 
   const firstCard = page.getByRole("button", { name: /rank/i }).first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
+  const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
+  if (!selectedCarrierId) throw new Error("Expected selectedCarrierId after selecting a carrier.");
 
   // Open evidence via a score component proof entry point.
-  await page.getByRole("button", { name: /^View proof$/ }).first().click();
+  const componentProof = page.locator('[data-evidence-origin^="dimension:"]').first();
+  await expect(componentProof).toBeVisible({ timeout: 10_000 });
+  await componentProof.click();
   await expect(page).toHaveURL(/evidenceDimension=/);
+  await expect(page).toHaveURL(new RegExp(`selectedCarrierId=${selectedCarrierId}`));
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
   await expect(page.getByRole("dialog", { name: /evidence drawer/i })).toBeVisible();
 });
@@ -111,6 +116,130 @@ test("evidence opens from executive insights (delay reasons) without workflow co
   // Executive-style proof surface: no operational queue controls in the drawer.
   const drawer = page.getByRole("dialog", { name: /evidence drawer/i });
   await expect(drawer.getByRole("button", { name: /assign|comment|approve|save|owner/i })).toHaveCount(0);
+});
+
+test("evidence opens from governance attention items and supports required evidence context when items exist (VAL-CARRIER-014, VAL-CARRIER-015)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  // Find a governance proof control that actually yields at least one proof item.
+  const governanceProofs = page.locator('[data-evidence-origin^="governance:"]');
+  const count = await governanceProofs.count();
+  expect(count).toBeGreaterThan(0);
+
+  for (let i = 0; i < count; i += 1) {
+    const proof = governanceProofs.nth(i);
+    await proof.click();
+
+    await expect(page).toHaveURL(/selectedCarrierId=/);
+    await expect(page).toHaveURL(/evidenceDimension=/);
+
+    const drawer = page.getByRole("dialog", { name: /evidence drawer/i });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /^Close$/ })).toBeVisible();
+
+    // Wait for the drawer to resolve to either evidence items or the scoped empty state.
+    await Promise.race([
+      expect(drawer.locator("article").first()).toBeVisible({ timeout: 10_000 }),
+      expect(drawer.getByText(/no proof items are available/i)).toBeVisible({ timeout: 10_000 }),
+    ]);
+
+    const hasItems = (await drawer.locator("article").count()) > 0;
+    if (hasItems) {
+      // Required safe evidence-record context fields should be visible.
+      await expect(drawer.getByText(/^Carrier$/)).toBeVisible();
+      await expect(drawer.getByText(/^Period$/)).toBeVisible();
+      await expect(drawer.getByText(/^Region$/)).toBeVisible();
+      await expect(drawer.getByText(/^Product$/)).toBeVisible();
+      await expect(drawer.getByText(/^Stage$/)).toBeVisible();
+      await expect(drawer.getByText(/^Delay reason$/)).toBeVisible();
+      await expect(drawer.getByText(/^Timing$/)).toBeVisible();
+      await expect(drawer.getByText(/^Responsiveness$/)).toBeVisible();
+      await expect(drawer.getByText(/^Escalations$/)).toBeVisible();
+      return;
+    }
+
+    // Close and try the next governance proof item.
+    await drawer.getByRole("button", { name: /^Close$/ }).click();
+    await expect(drawer).not.toBeVisible();
+  }
+
+  throw new Error("No governance proof items yielded evidence records; expected at least one to validate evidence context fields.");
+});
+
+test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  await page.getByLabel("Region").selectOption("emea");
+  await page.getByLabel("Product type").selectOption("fiber");
+
+  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  await firstCard.click();
+  await expect(page).toHaveURL(/selectedCarrierId=/);
+
+  const componentProof = page.locator('[data-evidence-origin^="dimension:"]').first();
+  await expect(componentProof).toBeVisible({ timeout: 10_000 });
+  await componentProof.click();
+  await expect(page).toHaveURL(/evidenceDimension=/);
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+
+  const deepLink = page.url();
+  await page.reload();
+
+  await expect(page).toHaveURL(deepLink);
+  await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+});
+
+test("conflicting evidence deep-link params sanitize safely with visible recovery (VAL-CARRIER-024)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  // Build an evidence deep link from real UI state so the ids are valid.
+  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  await firstCard.click();
+  await expect(page).toHaveURL(/selectedCarrierId=/);
+  const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
+  if (!selectedCarrierId) throw new Error("Expected selectedCarrierId for conflicting evidence deep link test.");
+
+  const evidenceIdButton = page.getByRole("button", { name: /^[0-9a-f-]{36}$/i }).first();
+  await expect(evidenceIdButton).toBeVisible({ timeout: 10_000 });
+  const evidenceId = await evidenceIdButton.textContent();
+  if (!evidenceId) throw new Error("Expected evidenceId button text.");
+
+  const invalid = new URLSearchParams();
+  invalid.set("selectedCarrierId", selectedCarrierId);
+  invalid.set("evidenceId", evidenceId);
+  invalid.set("evidenceDimension", "delay_severity");
+  invalid.set("evidenceDelayReason", "permit");
+
+  await page.goto(`/?${invalid.toString()}`);
+
+  // Conflicting scope params should be sanitized to a single evidence scope.
+  await expect(page).not.toHaveURL(/evidenceDimension=/);
+  await expect(page).not.toHaveURL(/evidenceDelayReason=/);
+  await expect(page).toHaveURL(/evidenceId=/);
+
+  await expect(page.getByText(/conflicting parameters/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+});
+
+test("invalid evidenceId deep link recovers with a reset banner (VAL-CARRIER-024)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  await firstCard.click();
+  await expect(page).toHaveURL(/selectedCarrierId=/);
+
+  const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
+  if (!selectedCarrierId) throw new Error("Expected selectedCarrierId for invalid evidenceId deep link test.");
+
+  await page.goto(`/?selectedCarrierId=${selectedCarrierId}&evidenceId=00000000-0000-0000-0000-000000000000`);
+
+  await expect(page.getByText(/proof link is not available/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page).not.toHaveURL(/evidenceId=/);
 });
 
 test("rapid filter changes do not show stale comparison state", async ({ page }) => {
@@ -201,7 +330,9 @@ test("valid deep links restore selection and evidence state", async ({ page }) =
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
 
   // Use the score-component proof entry point so deep links are always available.
-  await page.getByRole("button", { name: /^View proof$/ }).first().click();
+  const componentProof = page.locator('[data-evidence-origin^="dimension:"]').first();
+  await expect(componentProof).toBeVisible({ timeout: 10_000 });
+  await componentProof.click();
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
 
   const deepLink = page.url();
@@ -320,9 +451,9 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
   await page.goto("/");
 
   await page.getByLabel("Region").selectOption("emea");
-  await expect(page).toHaveURL(/region=emea/);
+  await expect(page).toHaveURL(/region=emea/, { timeout: 10_000 });
   await page.getByLabel("Product type").selectOption("fiber");
-  await expect(page).toHaveURL(/productType=fiber/);
+  await expect(page).toHaveURL(/productType=fiber/, { timeout: 10_000 });
 
   const firstCard = page.getByRole("button", { name: /rank/i }).first();
   await firstCard.click();

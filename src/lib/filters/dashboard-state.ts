@@ -17,7 +17,8 @@ export type DashboardSanitizeIssue =
   | { kind: "invalid_carrierId"; value: string }
   | { kind: "invalid_evidenceId"; value: string }
   | { kind: "invalid_evidenceDimension"; value: string }
-  | { kind: "invalid_evidenceDelayReason"; value: string };
+  | { kind: "invalid_evidenceDelayReason"; value: string }
+  | { kind: "conflicting_evidenceScope"; value: string };
 
 function parseNullable(raw: string | null): string | null {
   if (!raw) return null;
@@ -88,6 +89,29 @@ export function parseDashboardStateFromSearchParams(
       ? (issues.push({ kind: "invalid_evidenceDelayReason", value: evidenceDelayReasonRaw }), null)
       : evidenceDelayReasonRaw;
 
+  // Evidence scope is mutually exclusive: deep links must not specify multiple proof drivers.
+  // If a link contains multiple evidence scope params, deterministically choose one and drop the others.
+  const evidenceScopes = [
+    evidenceId ? "evidenceId" : null,
+    evidenceDimension ? "evidenceDimension" : null,
+    evidenceDelayReason ? "evidenceDelayReason" : null,
+  ].filter((v): v is string => Boolean(v));
+
+  const normalizedEvidenceId = evidenceId;
+  let normalizedEvidenceDimension = evidenceDimension;
+  let normalizedEvidenceDelayReason = evidenceDelayReason;
+
+  if (evidenceScopes.length > 1) {
+    issues.push({ kind: "conflicting_evidenceScope", value: evidenceScopes.join("+") });
+    // Priority: a concrete evidence id wins over dimension, which wins over delay-reason scope.
+    if (normalizedEvidenceId) {
+      normalizedEvidenceDimension = null;
+      normalizedEvidenceDelayReason = null;
+    } else if (normalizedEvidenceDimension) {
+      normalizedEvidenceDelayReason = null;
+    }
+  }
+
   return {
     state: {
       filters: {
@@ -97,9 +121,9 @@ export function parseDashboardStateFromSearchParams(
         period,
       },
       selectedCarrierId,
-      evidenceId,
-      evidenceDimension,
-      evidenceDelayReason,
+      evidenceId: normalizedEvidenceId,
+      evidenceDimension: normalizedEvidenceDimension,
+      evidenceDelayReason: normalizedEvidenceDelayReason,
     },
     issues,
   };

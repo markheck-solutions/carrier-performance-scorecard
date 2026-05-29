@@ -63,6 +63,17 @@ describe("dashboard state URL parsing", () => {
     expect(issues).toEqual(expect.arrayContaining([{ kind: "invalid_evidenceId", value: "abc 123" }]));
   });
 
+  it("sanitizes conflicting evidence scope params deterministically", () => {
+    const params = new URLSearchParams("evidenceId=11111111-1111-1111-1111-111111111111&evidenceDimension=delay_severity&evidenceDelayReason=permit");
+    const { state, issues } = parseDashboardStateFromSearchParams(params);
+
+    // EvidenceId wins over dimension/delayReason.
+    expect(state.evidenceId).toBe("11111111-1111-1111-1111-111111111111");
+    expect(state.evidenceDimension).toBeNull();
+    expect(state.evidenceDelayReason).toBeNull();
+    expect(issues).toEqual(expect.arrayContaining([{ kind: "conflicting_evidenceScope", value: "evidenceId+evidenceDimension+evidenceDelayReason" }]));
+  });
+
   it("round-trips query building for non-null values", () => {
     const query = buildDashboardQueryString({
       filters: { carrierId: "c1", region: "na", productType: "fiber", period: "2026-06" },
