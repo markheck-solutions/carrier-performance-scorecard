@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import type { CarrierScorecard, ScoreComponentResult, ScoreFilters, ScoreScope } from "@/lib/scoring/types";
+import { SCORE_MANIFEST } from "@/lib/scoring/manifest";
+import type { CarrierScorecard, ScoreComponentResult, ScoreFilters, ScoreScope, ScoringComponentId } from "@/lib/scoring/types";
 import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/db/demo-values";
 import { buildDashboardQueryString, parseDashboardStateFromSearchParams } from "@/lib/filters/dashboard-state";
 
@@ -41,6 +42,12 @@ type EvidenceReadModel =
   | {
       ok: true;
       scope: ScoreScope;
+      meta: {
+        totalItems: number;
+        returnedItems: number;
+        cap: number | null;
+        missingEvidenceIds: string[];
+      };
       items: Array<{
         id: string;
         dimension: string;
@@ -67,6 +74,10 @@ type LoadState<T> =
   | { status: "loading"; previous?: T }
   | { status: "ready"; data: T }
   | { status: "error"; message: string };
+
+type EvidenceFocusRestore =
+  | { kind: "element"; element: HTMLElement }
+  | { kind: "selector"; selector: string };
 
 function formatEnumLabel(value: string) {
   if (value === "na") return "North America";
@@ -116,6 +127,8 @@ function issueNote(issues: ReturnType<typeof parseDashboardStateFromSearchParams
   if (first.kind === "invalid_period") return "The requested period was not recognized and was reset.";
   if (first.kind === "invalid_carrierId") return "A carrier link or filter value was not recognized and was reset.";
   if (first.kind === "invalid_evidenceId") return "The requested evidence link was not recognized and was reset.";
+  if (first.kind === "invalid_evidenceDimension" || first.kind === "invalid_evidenceDelayReason")
+    return "The requested evidence scope was not recognized and was reset.";
   return "Some URL parameters were not recognized and were reset.";
 }
 
@@ -296,7 +309,8 @@ function ComparisonCard(props: {
 
 function ScoreBreakdownTable(props: {
   scorecard: CarrierScorecard;
-  onOpenEvidence: (evidenceId: string) => void;
+  onOpenEvidenceId: (evidenceId: string) => void;
+  onOpenEvidenceDimension: (dimension: ScoringComponentId) => void;
 }) {
   const comps = props.scorecard.components;
   return (
@@ -332,6 +346,14 @@ function ScoreBreakdownTable(props: {
               <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-semibold text-white/70 ring-1 ring-white/10">
                 Contribution {c.contribution}
               </span>
+              <button
+                type="button"
+                onClick={() => props.onOpenEvidenceDimension(c.id)}
+                data-evidence-origin={`dimension:${c.id}`}
+                className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/15 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              >
+                View proof
+              </button>
             </div>
           </div>
 
@@ -351,7 +373,8 @@ function ScoreBreakdownTable(props: {
                   <button
                     key={id}
                     type="button"
-                    onClick={() => props.onOpenEvidence(id)}
+                    onClick={() => props.onOpenEvidenceId(id)}
+                    data-evidence-origin={`evidenceId:${id}`}
                     className="rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/75 ring-1 ring-white/10 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     {id}
@@ -374,18 +397,25 @@ function ScoreBreakdownTable(props: {
 function EvidencePanel(props: {
   open: boolean;
   title: string;
+  subtitle?: string | null;
+  origin?: EvidenceFocusRestore | null;
   state: LoadState<EvidenceReadModel>;
   onClose: () => void;
 }) {
-  const { open, title, state, onClose } = props;
+  const { open, title, subtitle, origin, state, onClose } = props;
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
+  const restoreTarget = useRef<EvidenceFocusRestore | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    previouslyFocused.current = document.activeElement as HTMLElement | null;
+    if (origin) {
+      restoreTarget.current = origin;
+    } else {
+      const active = document.activeElement;
+      restoreTarget.current = active instanceof HTMLElement ? { kind: "element", element: active } : null;
+    }
     closeRef.current?.focus();
-  }, [open]);
+  }, [open, origin]);
 
   useEffect(() => {
     if (!open) return;
@@ -398,7 +428,40 @@ function EvidencePanel(props: {
 
   useEffect(() => {
     if (open) return;
-    previouslyFocused.current?.focus?.();
+    const target = restoreTarget.current;
+    if (!target) return;
+    const focusTarget = () => {
+      const el =
+        target.kind === "selector"
+          ? document.querySelector(target.selector)
+          : (target.element as unknown as { isConnected?: boolean }).isConnected
+            ? target.element
+            : null;
+      if (!(el instanceof HTMLElement)) return;
+      try {
+        el.scrollIntoView?.({ block: "nearest", inline: "nearest" } as ScrollIntoViewOptions);
+      } catch {
+        // ignore
+      }
+      try {
+        (el as unknown as { focus?: (opts?: { preventScroll?: boolean }) => void }).focus?.({ preventScroll: true });
+      } catch {
+        el.focus?.();
+      }
+    };
+
+    // Next/router may apply its own focus behavior after URL changes. Try a couple times.
+    const t1 = window.setTimeout(focusTarget, 0);
+    const t2 = window.setTimeout(focusTarget, 75);
+    const t3 = window.setTimeout(focusTarget, 200);
+    const t4 = window.setTimeout(focusTarget, 600);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(t4);
+    };
   }, [open]);
 
   if (!open) return null;
@@ -410,6 +473,7 @@ function EvidencePanel(props: {
           <div>
             <div className="text-xs font-semibold tracking-wide text-white/60">Evidence</div>
             <h3 className="mt-1 text-base font-semibold text-white">{title}</h3>
+            {subtitle ? <div className="mt-1 text-xs text-white/60">{subtitle}</div> : null}
           </div>
           <button
             ref={closeRef}
@@ -432,6 +496,28 @@ function EvidencePanel(props: {
             state.data.ok ? (
               state.data.items.length > 0 ? (
                 <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-white/70">
+                    <div>
+                      Showing{" "}
+                      <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.returnedItems}</span> of{" "}
+                      <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.totalItems}</span> proof items
+                      {state.data.meta.cap ? (
+                        <>
+                          {" "}
+                          <span className="text-white/40" aria-hidden="true">
+                            •
+                          </span>{" "}
+                          Cap {state.data.meta.cap}
+                        </>
+                      ) : null}
+                    </div>
+                    {state.data.meta.missingEvidenceIds.length > 0 ? (
+                      <div>
+                        <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.missingEvidenceIds.length}</span>{" "}
+                        missing reference(s) in this scope
+                      </div>
+                    ) : null}
+                  </div>
                   {state.data.items.map((item) => (
                     <article key={item.id} className="rounded-2xl border border-white/10 bg-black/30 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -463,13 +549,33 @@ function EvidencePanel(props: {
                           <div className="font-semibold text-white/75">Escalations</div>
                           <div className="tabular-nums">{item.escalationCount}</div>
                         </div>
+                        <div className="sm:col-span-2">
+                          <div className="font-semibold text-white/75">Timing</div>
+                          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                            <span>
+                              Committed <span className="font-semibold text-white/80 tabular-nums">{item.committedDate.slice(0, 10)}</span>
+                            </span>
+                            <span>
+                              Forecast{" "}
+                              <span className="font-semibold text-white/80 tabular-nums">
+                                {item.forecastDate ? item.forecastDate.slice(0, 10) : "—"}
+                              </span>
+                            </span>
+                            <span>
+                              Completed{" "}
+                              <span className="font-semibold text-white/80 tabular-nums">
+                                {item.completedDate ? item.completedDate.slice(0, 10) : "—"}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </article>
                   ))}
                 </div>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70">
-                  No evidence is available for this scope.
+                  No proof items are available for this scope. Broaden filters or select another driver.
                 </div>
               )
             ) : (
@@ -501,9 +607,25 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   });
   const [detailState, setDetailState] = useState<LoadState<CarrierDetailReadModel>>({ status: "idle" });
   const [evidenceState, setEvidenceState] = useState<LoadState<EvidenceReadModel>>({ status: "idle" });
+  const [evidenceOrigin, setEvidenceOrigin] = useState<EvidenceFocusRestore | null>(null);
 
   const [transientBanner, setTransientBanner] = useState<string | null>(null);
   const [dismissedIssueKey, setDismissedIssueKey] = useState<string | null>(null);
+
+  const captureEvidenceOrigin = useCallback(() => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) {
+      setEvidenceOrigin(null);
+      return;
+    }
+    const key = active.getAttribute("data-evidence-origin");
+    if (key) {
+      const escaped = key.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+      setEvidenceOrigin({ kind: "selector", selector: `[data-evidence-origin="${escaped}"]` });
+      return;
+    }
+    setEvidenceOrigin({ kind: "element", element: active });
+  }, []);
 
   const allowedCarrierIds = useMemo(() => {
     if (optionsState.status !== "ready") return null;
@@ -546,32 +668,45 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     filters?: Partial<ScoreFilters>;
     selectedCarrierId?: string | null;
     evidenceId?: string | null;
+    evidenceDimension?: ScoringComponentId | null;
+    evidenceDelayReason?: string | null;
   };
 
   const updateUrl = useCallback(
-    (next: UrlPatch) => {
+    (next: UrlPatch, opts?: { mode?: "push" | "replace" }) => {
       const nextState = {
         filters: { ...state.filters, ...(next.filters ?? {}) },
         selectedCarrierId: next.selectedCarrierId === undefined ? state.selectedCarrierId : next.selectedCarrierId,
         evidenceId: next.evidenceId === undefined ? state.evidenceId : next.evidenceId,
+        evidenceDimension: next.evidenceDimension === undefined ? state.evidenceDimension : next.evidenceDimension,
+        evidenceDelayReason: next.evidenceDelayReason === undefined ? state.evidenceDelayReason : next.evidenceDelayReason,
       };
       const query = buildDashboardQueryString(nextState);
       const href = query.length > 0 ? `/${query}` : "/";
-      router.push(href, { scroll: false });
+      if (opts?.mode === "replace") router.replace(href, { scroll: false });
+      else router.push(href, { scroll: false });
     },
-    [router, state.evidenceId, state.filters, state.selectedCarrierId]
+    [router, state.evidenceDelayReason, state.evidenceDimension, state.evidenceId, state.filters, state.selectedCarrierId]
   );
 
   const clearSelection = useCallback(() => {
-    updateUrl({ selectedCarrierId: null, evidenceId: null });
+    updateUrl(
+      { selectedCarrierId: null, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null },
+      { mode: "replace" }
+    );
   }, [updateUrl]);
 
   const clearFilters = useCallback(() => {
-    updateUrl({
-      filters: { carrierId: null, region: null, productType: null, period: null },
-      selectedCarrierId: null,
-      evidenceId: null,
-    });
+    updateUrl(
+      {
+        filters: { carrierId: null, region: null, productType: null, period: null },
+        selectedCarrierId: null,
+        evidenceId: null,
+        evidenceDimension: null,
+        evidenceDelayReason: null,
+      },
+      { mode: "replace" }
+    );
   }, [updateUrl]);
 
   // If a carrier filter is applied that excludes the current selection, clear dependent panels deterministically.
@@ -579,7 +714,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     if (!state.filters.carrierId) return;
     if (!state.selectedCarrierId) return;
     if (state.filters.carrierId === state.selectedCarrierId) return;
-    updateUrl({ selectedCarrierId: null, evidenceId: null });
+    updateUrl({ selectedCarrierId: null, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null });
   }, [state.filters.carrierId, state.selectedCarrierId, updateUrl]);
 
   // Load filter options once (carriers + periods). These are used to sanitize deep links.
@@ -707,11 +842,26 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     return () => controller.abort();
   }, [state.selectedCarrierId, state.filters]);
 
-  // Fetch evidence when evidenceId changes.
+  const evidenceCarrierId = state.selectedCarrierId ?? state.filters.carrierId ?? null;
+
+  function evidenceRequestLabel() {
+    if (state.evidenceId) return `Evidence ${state.evidenceId}`;
+    if (state.evidenceDimension) return `Score driver: ${SCORE_MANIFEST.components[state.evidenceDimension].label}`;
+    if (state.evidenceDelayReason) return `Delay reason: ${formatEnumLabel(state.evidenceDelayReason)}`;
+    return "Evidence";
+  }
+
+  function evidenceRequestSubtitle() {
+    const carrierTag = evidenceCarrierId ? "Scoped to selected carrier" : "All carriers in scope";
+    const scope = scopeLabel;
+    return `${carrierTag} • ${scope}`;
+  }
+
+  // Fetch evidence when evidence state changes.
   const evidenceRequestSeq = useRef(0);
   useEffect(() => {
-    const evidenceId = state.evidenceId;
-    if (!evidenceId) return;
+    const mode = state.evidenceId ? "id" : state.evidenceDimension ? "dimension" : state.evidenceDelayReason ? "delayReason" : null;
+    if (!mode) return;
 
     const requestId = ++evidenceRequestSeq.current;
     const controller = new AbortController();
@@ -719,8 +869,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     async function run() {
       setEvidenceState({ status: "loading" });
       try {
-        const filterParams = new URLSearchParams(buildFiltersQuery(state.filters).slice(1));
-        filterParams.set("evidenceIds", evidenceId as string);
+        const filterParams = new URLSearchParams(buildFiltersQuery({ ...state.filters, carrierId: evidenceCarrierId }).slice(1));
+        if (mode === "id") filterParams.set("evidenceIds", state.evidenceId as string);
+        if (mode === "dimension") filterParams.set("dimension", state.evidenceDimension as string);
+        if (mode === "delayReason") filterParams.set("delayReason", state.evidenceDelayReason as string);
+        if (mode !== "id") filterParams.set("cap", "18");
         const res = await fetch(`/api/evidence?${filterParams.toString()}`, { signal: controller.signal });
         const payload = (await res.json()) as EvidenceReadModel;
         if (requestId !== evidenceRequestSeq.current) return;
@@ -732,10 +885,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
           return;
         }
 
-        // If a specific evidence id was requested but not found, treat it as an invalid deep link and close it.
-        if (payload.items.length === 0) {
-          updateUrl({ evidenceId: null });
-          setTransientBanner("That evidence link is no longer available in the current scope.");
+        // If a specific evidence id was requested but not found, treat it as a filtered-out or missing reference.
+        // Close it (safe recoverable behavior) and surface a banner.
+        if (mode === "id" && payload.items.length === 0) {
+          updateUrl({ evidenceId: null, evidenceDimension: null, evidenceDelayReason: null }, { mode: "replace" });
+          setTransientBanner("That proof link is not available in the current scope.");
           return;
         }
 
@@ -749,7 +903,15 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     run();
     return () => controller.abort();
-  }, [state.evidenceId, state.filters, updateUrl]);
+  }, [
+    evidenceCarrierId,
+    state.evidenceDelayReason,
+    state.evidenceDimension,
+    state.evidenceId,
+    state.filters,
+    state.selectedCarrierId,
+    updateUrl,
+  ]);
 
   const summary =
     summaryState.status === "ready"
@@ -787,6 +949,19 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       <ExecutiveDashboard
         summary={summary ?? props.initialSummary}
         runtime={props.runtime}
+        onOpenEvidenceForDelayReason={(delayReason) => {
+          captureEvidenceOrigin();
+          updateUrl({ evidenceDelayReason: delayReason, evidenceId: null, evidenceDimension: null });
+        }}
+        onOpenEvidenceForGovernanceItem={(carrierId, dimension) => {
+          captureEvidenceOrigin();
+          updateUrl({
+            selectedCarrierId: carrierId,
+            evidenceDimension: dimension,
+            evidenceId: null,
+            evidenceDelayReason: null,
+          });
+        }}
         commandSurface={
           <section
             aria-label="Scope filters"
@@ -1001,7 +1176,12 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                       scorecard={sc}
                       selected={state.selectedCarrierId === sc.carrier.id}
                       onSelect={() => {
-                        updateUrl({ selectedCarrierId: sc.carrier.id, evidenceId: null });
+                        updateUrl({
+                          selectedCarrierId: sc.carrier.id,
+                          evidenceId: null,
+                          evidenceDimension: null,
+                          evidenceDelayReason: null,
+                        });
                       }}
                     />
                   ))
@@ -1091,7 +1271,14 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                         <div className="mt-4">
                           <ScoreBreakdownTable
                             scorecard={detailState.data.scorecard}
-                            onOpenEvidence={(evidenceId) => updateUrl({ evidenceId })}
+                            onOpenEvidenceId={(evidenceId) => {
+                              captureEvidenceOrigin();
+                              updateUrl({ evidenceId, evidenceDimension: null, evidenceDelayReason: null });
+                            }}
+                            onOpenEvidenceDimension={(dimension) => {
+                              captureEvidenceOrigin();
+                              updateUrl({ evidenceDimension: dimension, evidenceId: null, evidenceDelayReason: null });
+                            }}
                           />
                         </div>
                       </div>
@@ -1152,10 +1339,12 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       />
 
       <EvidencePanel
-        open={Boolean(state.evidenceId)}
-        title={state.evidenceId ? `Evidence ${state.evidenceId}` : "Evidence"}
+        open={Boolean(state.evidenceId || state.evidenceDimension || state.evidenceDelayReason)}
+        title={evidenceRequestLabel()}
+        subtitle={evidenceRequestSubtitle()}
+        origin={evidenceOrigin}
         state={evidenceState}
-        onClose={() => updateUrl({ evidenceId: null })}
+        onClose={() => updateUrl({ evidenceId: null, evidenceDimension: null, evidenceDelayReason: null }, { mode: "replace" })}
       />
     </div>
   );

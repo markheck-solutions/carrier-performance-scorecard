@@ -1,7 +1,7 @@
 "use client";
 
 import { DEMO_DATASET_ID, DEMO_SEED_VERSION } from "@/lib/db/demo-values";
-import type { CarrierScorecard, ScoreGrade } from "@/lib/scoring/types";
+import type { CarrierScorecard, ScoreGrade, ScoringComponentId } from "@/lib/scoring/types";
 
 import {
   executiveAttentionList,
@@ -116,6 +116,8 @@ export function ExecutiveDashboard(props: {
   runtime: RuntimePosture;
   commandSurface?: React.ReactNode;
   comparisonAndDetail?: React.ReactNode;
+  onOpenEvidenceForDelayReason?: (delayReason: string) => void;
+  onOpenEvidenceForGovernanceItem?: (carrierId: string, dimension: ScoringComponentId) => void;
 }) {
   const model = props.summary;
   const portfolio = portfolioHealth(model.carriers);
@@ -410,6 +412,22 @@ export function ExecutiveDashboard(props: {
                         <div className="mt-2 text-sm leading-6 text-white/70">{item.reason}</div>
                         <div className="mt-3 text-xs font-semibold tracking-wide text-white/60">Next discussion angle</div>
                         <div className="mt-1 text-sm leading-6 text-white/70">{item.discussionAngle}</div>
+                        {props.onOpenEvidenceForGovernanceItem && item.concerns[0] ? (
+                          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/35 px-3 py-2">
+                            <div className="text-xs text-white/70">
+                              Proof focus:{" "}
+                              <span className="font-semibold text-white/85">{item.concerns[0].label}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => props.onOpenEvidenceForGovernanceItem?.(item.carrierId, item.concerns[0]!.id)}
+                              data-evidence-origin={`governance:${item.carrierId}:${item.concerns[0]!.id}`}
+                              className="inline-flex items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/15 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                            >
+                              View proof
+                            </button>
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ol>
@@ -487,7 +505,19 @@ export function ExecutiveDashboard(props: {
                               const pct = derived.model.counts.deliveryRecords > 0 ? d.count / derived.model.counts.deliveryRecords : 0;
                               return (
                                 <div key={d.delayReason} className="flex items-center gap-3">
-                                  <div className="w-28 text-xs font-semibold text-white/80">{d.delayReason}</div>
+                                  <div className="flex w-28 items-center gap-2">
+                                    <div className="text-xs font-semibold text-white/80">{d.delayReason}</div>
+                                    {props.onOpenEvidenceForDelayReason ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => props.onOpenEvidenceForDelayReason?.(d.delayReason)}
+                                        data-evidence-origin={`delayReason:${d.delayReason}`}
+                                        className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/75 ring-1 ring-white/10 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                                      >
+                                        Proof
+                                      </button>
+                                    ) : null}
+                                  </div>
                                   <div className="flex-1">
                                     <div className="h-2 rounded-full bg-white/10">
                                       <div className="h-2 rounded-full bg-white/40" style={{ width: `${Math.min(100, pct * 120)}%` }} />

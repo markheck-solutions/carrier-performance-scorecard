@@ -14,7 +14,25 @@ function parseEvidenceIds(url: URL) {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  return ids.length > 0 ? ids : null;
+  if (ids.length === 0) return null;
+  // De-duplicate while preserving the first-seen order (stable).
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  return deduped.length > 0 ? deduped : null;
+}
+
+function parseCap(url: URL) {
+  const raw = url.searchParams.get("cap");
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const cap = Math.floor(n);
+  return cap > 0 ? cap : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -22,10 +40,12 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const filters = parseScoreFiltersFromUrl(url);
     const dimension = url.searchParams.get("dimension");
+    const delayReason = url.searchParams.get("delayReason");
     const evidenceIds = parseEvidenceIds(url);
+    const cap = parseCap(url);
     const { db } = getServerDb();
 
-    const model = await readEvidence(db, { ...filters, dimension, evidenceIds });
+    const model = await readEvidence(db, { ...filters, dimension, delayReason, evidenceIds, cap });
     return NextResponse.json(model);
   } catch (error: unknown) {
     if (isInvalidFilterError(error)) {

@@ -41,6 +41,12 @@ export type CarrierDetailReadModel = {
 export type EvidenceReadModel = {
   ok: true;
   scope: ReturnType<typeof buildCarrierScorecards>["scope"];
+  meta: {
+    totalItems: number;
+    returnedItems: number;
+    cap: number | null;
+    missingEvidenceIds: string[];
+  };
   items: Array<{
     id: string;
     dimension: string;
@@ -328,12 +334,23 @@ export async function readCarrierDetail(db: DemoDb, carrierId: string, filters: 
   };
 }
 
-export async function readEvidence(db: DemoDb, filters: ScoreFilters & { dimension?: string | null; evidenceIds?: string[] | null }): Promise<EvidenceReadModel> {
+export async function readEvidence(
+  db: DemoDb,
+  filters: ScoreFilters & {
+    dimension?: string | null;
+    delayReason?: string | null;
+    evidenceIds?: string[] | null;
+    cap?: number | null;
+  }
+): Promise<EvidenceReadModel> {
   const f = normalizeFilters(filters);
   assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
   assertAllowedFilter({ field: "productType", value: f.productType, allowed: PRODUCT_TYPE_VALUES });
   const dimension = filters.dimension ?? null;
-  const ids = filters.evidenceIds ?? null;
+  const delayReason = filters.delayReason ?? null;
+  const rawIds = filters.evidenceIds ?? null;
+  const ids = rawIds && rawIds.length > 0 ? Array.from(new Set(rawIds)) : null;
+  const cap = typeof filters.cap === "number" && Number.isFinite(filters.cap) && filters.cap > 0 ? Math.floor(filters.cap) : null;
 
   const periods = await db.select().from(schema.periods);
   const periodMatch = f.period ? periods.find((p) => p.seedKey === f.period) : null;
@@ -348,6 +365,7 @@ export async function readEvidence(db: DemoDb, filters: ScoreFilters & { dimensi
   const clauses = whereClauses(f, periodMatch?.id ?? null);
   const evidenceClauses: SQL[] = [...clauses];
   if (dimension) evidenceClauses.push(eq(schema.evidenceItems.dimension, dimension));
+  if (delayReason) evidenceClauses.push(eq(schema.deliveryRecords.delayReason, delayReason));
   if (ids && ids.length > 0) evidenceClauses.push(inArray(schema.evidenceItems.id, ids));
 
   const baseQuery = db
@@ -368,6 +386,9 @@ export async function readEvidence(db: DemoDb, filters: ScoreFilters & { dimensi
       responsivenessHours: schema.deliveryRecords.responsivenessHours,
       escalationCount: schema.deliveryRecords.escalationCount,
       delayDays: schema.deliveryRecords.delayDays,
+      openedAt: schema.deliveryRecords.openedAt,
+      isRepeat: schema.deliveryRecords.isRepeat,
+      issueSignature: schema.deliveryRecords.issueSignature,
     })
     .from(schema.evidenceItems)
     .innerJoin(schema.deliveryRecords, eq(schema.deliveryRecords.id, schema.evidenceItems.deliveryRecordId))
@@ -390,11 +411,66 @@ export async function readEvidence(db: DemoDb, filters: ScoreFilters & { dimensi
     filters: f,
   }).scope;
 
+  const requestedIds = ids ? [...ids] : [];
+  const returnedIds = new Set(rows.map((r) => r.id));
+  const missingEvidenceIds = requestedIds.filter((id) => !returnedIds.has(id));
+
+  // Deterministic sort: for known score dimensions, align with evidence-selection severity ordering.
+  // Fall back to stable id ordering for unrecognized dimensions.
+  const sorted = [...rows].sort((a, b) => {
+    const dim = dimension ?? null;
+    if (dim === "delay_severity" || dim === "commitment_adherence") {
+      if (a.delayDays !== b.delayDays) return b.delayDays - a.delayDays;
+      return a.id.localeCompare(b.id);
+    }
+    if (dim === "responsiveness") {
+      if (a.responsivenessHours !== b.responsivenessHours) return b.responsivenessHours - a.responsivenessHours;
+      return a.id.localeCompare(b.id);
+    }
+    if (dim === "escalation_volume") {
+      if (a.escalationCount !== b.escalationCount) return b.escalationCount - a.escalationCount;
+      return a.id.localeCompare(b.id);
+    }
+    if (dim === "aging_open_commitments") {
+      // Oldest first.
+      const aMs = a.openedAt instanceof Date ? a.openedAt.getTime() : Date.parse(String(a.openedAt));
+      const bMs = b.openedAt instanceof Date ? b.openedAt.getTime() : Date.parse(String(b.openedAt));
+      if (aMs !== bMs) return aMs - bMs;
+      return a.id.localeCompare(b.id);
+    }
+    if (dim === "repeat_issue_concentration") {
+      // Prefer repeats first, then stable issue signature grouping.
+      if (Boolean(a.isRepeat) !== Boolean(b.isRepeat)) return a.isRepeat ? -1 : 1;
+      if (a.issueSignature !== b.issueSignature) return String(a.issueSignature).localeCompare(String(b.issueSignature));
+      return a.id.localeCompare(b.id);
+    }
+    if (dim === "completion_trend") {
+      if (a.period !== b.period) return a.period.localeCompare(b.period);
+      return a.id.localeCompare(b.id);
+    }
+    if (!dim && delayReason) {
+      // Delay-reason proof: prioritize largest misses, then escalation/responsiveness, then stable id.
+      if (a.delayDays !== b.delayDays) return b.delayDays - a.delayDays;
+      if (a.escalationCount !== b.escalationCount) return b.escalationCount - a.escalationCount;
+      if (a.responsivenessHours !== b.responsivenessHours) return b.responsivenessHours - a.responsivenessHours;
+      return a.id.localeCompare(b.id);
+    }
+    return a.id.localeCompare(b.id);
+  });
+
+  const totalItems = sorted.length;
+  const visible = cap ? sorted.slice(0, cap) : sorted;
+
   return {
     ok: true,
     scope,
-    items: rows
-      .sort((a, b) => a.id.localeCompare(b.id))
+    meta: {
+      totalItems,
+      returnedItems: visible.length,
+      cap,
+      missingEvidenceIds,
+    },
+    items: visible
       .map((r) => ({
         id: r.id,
         dimension: r.dimension,

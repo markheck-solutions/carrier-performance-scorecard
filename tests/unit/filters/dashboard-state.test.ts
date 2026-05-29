@@ -11,6 +11,8 @@ describe("dashboard state URL parsing", () => {
     expect(state.filters).toEqual({ carrierId: null, region: null, productType: null, period: null });
     expect(state.selectedCarrierId).toBeNull();
     expect(state.evidenceId).toBeNull();
+    expect(state.evidenceDimension).toBeNull();
+    expect(state.evidenceDelayReason).toBeNull();
   });
 
   it("sanitizes invalid enums and returns issues instead of throwing", () => {
@@ -66,6 +68,8 @@ describe("dashboard state URL parsing", () => {
       filters: { carrierId: "c1", region: "na", productType: "fiber", period: "2026-06" },
       selectedCarrierId: "c1",
       evidenceId: "e-1",
+      evidenceDimension: null,
+      evidenceDelayReason: null,
     });
 
     expect(query).toBe("?carrierId=c1&region=na&productType=fiber&period=2026-06&selectedCarrierId=c1&evidenceId=e-1");
@@ -78,5 +82,7 @@ describe("dashboard state URL parsing", () => {
     expect(state.filters.carrierId).toBe("c1");
     expect(state.selectedCarrierId).toBe("c1");
     expect(state.evidenceId).toBe("e-1");
+    expect(state.evidenceDimension).toBeNull();
+    expect(state.evidenceDelayReason).toBeNull();
   });
 });

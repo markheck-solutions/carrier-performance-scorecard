@@ -58,6 +58,72 @@ test("browser navigation restores evidence drawer state", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
 });
 
+test("evidence opens from score components as a scoped proof surface", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  await firstCard.click();
+  await expect(page).toHaveURL(/selectedCarrierId=/);
+
+  // Open evidence via a score component proof entry point.
+  await page.getByRole("button", { name: /^View proof$/ }).first().click();
+  await expect(page).toHaveURL(/evidenceDimension=/);
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /evidence drawer/i })).toBeVisible();
+});
+
+test("evidence drawer supports Escape close and returns focus to origin", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  await firstCard.click();
+  await expect(page).toHaveURL(/selectedCarrierId=/);
+
+  const evidenceIdButton = page.getByRole("button", { name: /^[0-9a-f-]{36}$/i }).first();
+  await evidenceIdButton.focus();
+  await expect(evidenceIdButton).toBeFocused();
+  await evidenceIdButton.click();
+
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+
+  // Escape closes the drawer.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: /^Close$/ })).not.toBeVisible();
+
+  // Focus returns to the originating evidence id control.
+  // Debug: capture active element in failure traces.
+  const active = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return { tag: "none" };
+    return {
+      tag: el.tagName,
+      origin: el.getAttribute("data-evidence-origin"),
+      text: (el.textContent || "").trim().slice(0, 80),
+    };
+  });
+  console.log("active after close", active);
+  await expect(evidenceIdButton).toBeFocused();
+});
+
+test("evidence opens from executive insights (delay reasons) without workflow controls", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+
+  // Open proof from a delay reason insight.
+  const proofButtons = page.getByRole("button", { name: /^Proof$/ });
+  await expect(proofButtons.first()).toBeVisible();
+  await proofButtons.first().click();
+
+  await expect(page).toHaveURL(/evidenceDelayReason=/);
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+
+  // Executive-style proof surface: no operational queue controls in the drawer.
+  const drawer = page.getByRole("dialog", { name: /evidence drawer/i });
+  await expect(drawer.getByRole("button", { name: /assign|comment|approve|save|owner/i })).toHaveCount(0);
+});
+
 test("rapid filter changes do not show stale comparison state", async ({ page }) => {
   // Delay the summary endpoint so we can force out-of-order responses.
   await page.route("**/api/scorecards/summary**", async (route) => {
@@ -142,24 +208,11 @@ test("valid deep links restore selection and evidence state", async ({ page }) =
   const cards = page.getByRole("button", { name: /rank/i });
   await expect(cards.first()).toBeVisible({ timeout: 10_000 });
 
-  let openedEvidence = false;
-  const cardCount = await cards.count();
-  for (let i = 0; i < Math.min(cardCount, 5); i += 1) {
-    await cards.nth(i).click();
-    await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
+  await cards.first().click();
+  await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
 
-    const evidenceButtons = page.getByRole("button", { name: /^[0-9a-f-]{36}$/i });
-    try {
-      await evidenceButtons.first().waitFor({ state: "visible", timeout: 3_000 });
-      await evidenceButtons.first().click();
-      openedEvidence = true;
-      break;
-    } catch {
-      // Try the next carrier card.
-    }
-  }
-
-  expect(openedEvidence).toBe(true);
+  // Use the score-component proof entry point so deep links are always available.
+  await page.getByRole("button", { name: /^View proof$/ }).first().click();
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
 
   const deepLink = page.url();
