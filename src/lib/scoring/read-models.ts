@@ -3,11 +3,12 @@ import type { SQL } from "drizzle-orm";
 
 import type { DemoDb } from "../db/ensure-schema";
 import { schema } from "../db/schema";
-import type { ProductType, Region } from "../db/demo-values";
+import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "../db/demo-values";
 import { buildCarrierScorecards, type CarrierInfo, type DeliveryInfo, type PeriodInfo } from "./engine";
 import type { EvidenceCandidate } from "./evidence";
 import type { ScoreFilters } from "./types";
 import { SCORE_MANIFEST } from "./manifest";
+import { InvalidFilterError } from "./invalid-filter";
 
 export type ScorecardsSummaryReadModel = {
   ok: true;
@@ -69,6 +70,20 @@ function normalizeFilters(filters: ScoreFilters): Required<ScoreFilters> {
   };
 }
 
+function assertAllowedFilter(params: {
+  field: "region" | "productType";
+  value: string | null;
+  allowed: readonly string[];
+}) {
+  if (!params.value) return;
+  if (params.allowed.includes(params.value)) return;
+  throw new InvalidFilterError({
+    field: params.field,
+    value: params.value,
+    allowed: [...params.allowed],
+  });
+}
+
 function whereClauses(filters: Required<ScoreFilters>, periodId: string | null) {
   const clauses: SQL[] = [];
   if (filters.carrierId) clauses.push(eq(schema.deliveryRecords.carrierId, filters.carrierId));
@@ -86,9 +101,18 @@ function toIsoString(value: unknown): string {
 
 export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): Promise<ScorecardsSummaryReadModel> {
   const f = normalizeFilters(filters);
+  assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
+  assertAllowedFilter({ field: "productType", value: f.productType, allowed: PRODUCT_TYPE_VALUES });
 
   const periods = await db.select().from(schema.periods);
   const periodMatch = f.period ? periods.find((p) => p.seedKey === f.period) : null;
+  if (f.period && !periodMatch) {
+    throw new InvalidFilterError({
+      field: "period",
+      value: f.period,
+      allowed: periods.map((p) => p.seedKey),
+    });
+  }
 
   const clauses = whereClauses(f, periodMatch?.id ?? null);
 
@@ -306,11 +330,20 @@ export async function readCarrierDetail(db: DemoDb, carrierId: string, filters: 
 
 export async function readEvidence(db: DemoDb, filters: ScoreFilters & { dimension?: string | null; evidenceIds?: string[] | null }): Promise<EvidenceReadModel> {
   const f = normalizeFilters(filters);
+  assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
+  assertAllowedFilter({ field: "productType", value: f.productType, allowed: PRODUCT_TYPE_VALUES });
   const dimension = filters.dimension ?? null;
   const ids = filters.evidenceIds ?? null;
 
   const periods = await db.select().from(schema.periods);
   const periodMatch = f.period ? periods.find((p) => p.seedKey === f.period) : null;
+  if (f.period && !periodMatch) {
+    throw new InvalidFilterError({
+      field: "period",
+      value: f.period,
+      allowed: periods.map((p) => p.seedKey),
+    });
+  }
 
   const clauses = whereClauses(f, periodMatch?.id ?? null);
   const evidenceClauses: SQL[] = [...clauses];

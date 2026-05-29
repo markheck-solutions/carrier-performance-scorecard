@@ -1,5 +1,6 @@
 import type { ProductType, Region } from "../db/demo-values";
 import { PRODUCT_TYPE_VALUES, REGION_VALUES } from "../db/demo-values";
+import { InvalidFilterError } from "./invalid-filter";
 import type { ScoreFilters } from "./types";
 
 function parseNullable(value: string | null): string | null {
@@ -8,17 +9,34 @@ function parseNullable(value: string | null): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-function parseEnum<T extends string>(value: string | null, allowed: readonly T[]): T | null {
-  const v = parseNullable(value);
+function parseAllowedEnum<T extends string>(params: {
+  value: string | null;
+  allowed: readonly T[];
+  field: "region" | "productType";
+}): T | null {
+  const v = parseNullable(params.value);
   if (!v) return null;
-  return (allowed as readonly string[]).includes(v) ? (v as T) : null;
+  if ((params.allowed as readonly string[]).includes(v)) return v as T;
+  throw new InvalidFilterError({
+    field: params.field,
+    value: v,
+    allowed: [...params.allowed],
+  });
 }
 
 export function parseScoreFiltersFromUrl(url: URL): ScoreFilters {
   return {
     carrierId: parseNullable(url.searchParams.get("carrierId")),
-    region: parseEnum<Region>(url.searchParams.get("region"), REGION_VALUES),
-    productType: parseEnum<ProductType>(url.searchParams.get("productType"), PRODUCT_TYPE_VALUES),
+    region: parseAllowedEnum<Region>({
+      value: url.searchParams.get("region"),
+      allowed: REGION_VALUES,
+      field: "region",
+    }),
+    productType: parseAllowedEnum<ProductType>({
+      value: url.searchParams.get("productType"),
+      allowed: PRODUCT_TYPE_VALUES,
+      field: "productType",
+    }),
     period: parseNullable(url.searchParams.get("period")),
   };
 }

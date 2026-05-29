@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServerDb } from "@/lib/db/server-db";
 import { parseScoreFiltersFromUrl } from "@/lib/scoring/filter-parse";
+import { isInvalidFilterError } from "@/lib/scoring/invalid-filter";
 import { readScorecardsSummary } from "@/lib/scoring/read-models";
 
 export const runtime = "nodejs";
@@ -12,7 +13,13 @@ export async function GET(request: NextRequest) {
     const { db } = getServerDb();
     const model = await readScorecardsSummary(db, filters);
     return NextResponse.json(model);
-  } catch {
+  } catch (error: unknown) {
+    if (isInvalidFilterError(error)) {
+      return NextResponse.json(
+        { ok: false, error: { code: error.code, message: error.message, details: error.details } },
+        { status: error.status }
+      );
+    }
     return NextResponse.json(
       { ok: false, error: { message: "Unable to compute scorecards right now." } },
       { status: 500 }
