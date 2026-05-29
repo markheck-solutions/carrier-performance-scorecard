@@ -2,7 +2,7 @@
 
 import { use } from "react";
 
-import { ExecutiveDashboard, type RuntimePosture } from "./ExecutiveDashboard";
+import { ExecutiveDashboardInteractive, type RuntimePosture } from "./ExecutiveDashboardInteractive";
 import type { ScorecardsSummaryModel } from "./types";
 
 type Props = {
@@ -12,5 +12,5 @@ type Props = {
 
 export function ExecutiveDashboardClient(props: Props) {
   const summary = use(props.summary);
-  return <ExecutiveDashboard summary={summary} runtime={props.runtime} />;
+  return <ExecutiveDashboardInteractive initialSummary={summary} runtime={props.runtime} />;
 }

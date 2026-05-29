@@ -5,7 +5,6 @@ import { useEffect } from "react";
 export default function ErrorPage(props: { error: Error & { digest?: string }; unstable_retry: () => void }) {
   useEffect(() => {
     // Intentionally avoid rendering error details. Logging is dev-only signal.
-    // eslint-disable-next-line no-console
     console.error(props.error);
   }, [props.error]);
 

@@ -3,7 +3,17 @@
 import { DEMO_DATASET_ID, DEMO_SEED_VERSION } from "@/lib/db/demo-values";
 import type { CarrierScorecard, ScoreGrade } from "@/lib/scoring/types";
 
-import { executiveAttentionList, gradeCounts, portfolioHealth, scopeLabel, commitmentOnTimeRate, completionTrend, governanceAttentionCount, lowConfidenceCount, topDrivers } from "./derive";
+import {
+  executiveAttentionList,
+  gradeCounts,
+  portfolioHealth,
+  scopeLabel,
+  commitmentOnTimeRate,
+  completionTrend,
+  governanceAttentionCount,
+  lowConfidenceCount,
+  topDrivers,
+} from "./derive";
 import { HealthSpectrum } from "./HealthSpectrum";
 import type { HealthModel, ScorecardsSummaryModel } from "./types";
 
@@ -101,7 +111,12 @@ function ErrorInline(props: { title: string; body: string; onRetry: () => void }
   );
 }
 
-export function ExecutiveDashboard(props: { summary: ScorecardsSummaryModel; runtime: RuntimePosture }) {
+export function ExecutiveDashboard(props: {
+  summary: ScorecardsSummaryModel;
+  runtime: RuntimePosture;
+  commandSurface?: React.ReactNode;
+  comparisonAndDetail?: React.ReactNode;
+}) {
   const model = props.summary;
   const portfolio = portfolioHealth(model.carriers);
   const grades = gradeCounts(model.carriers);
@@ -234,6 +249,10 @@ export function ExecutiveDashboard(props: { summary: ScorecardsSummaryModel; run
                 )}
               </div>
             </div>
+
+            {props.commandSurface ? (
+              <div className="pt-2">{props.commandSurface}</div>
+            ) : null}
           </header>
 
           <section aria-label="Leadership KPIs">
@@ -265,6 +284,10 @@ export function ExecutiveDashboard(props: { summary: ScorecardsSummaryModel; run
               />
             </div>
           </section>
+
+          {props.comparisonAndDetail ? (
+            <section aria-label="Carrier comparison and detail">{props.comparisonAndDetail}</section>
+          ) : null}
 
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-12" aria-label="Executive signals">
             <div className="lg:col-span-6">

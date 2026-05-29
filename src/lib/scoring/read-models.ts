@@ -61,7 +61,7 @@ export type EvidenceReadModel = {
   }>;
 };
 
-function normalizeFilters(filters: ScoreFilters): Required<ScoreFilters> {
+function normalizeFilters(filters: ScoreFilters): ScoreFilters {
   return {
     carrierId: filters.carrierId ?? null,
     region: filters.region ?? null,
@@ -84,7 +84,7 @@ function assertAllowedFilter(params: {
   });
 }
 
-function whereClauses(filters: Required<ScoreFilters>, periodId: string | null) {
+function whereClauses(filters: ScoreFilters, periodId: string | null) {
   const clauses: SQL[] = [];
   if (filters.carrierId) clauses.push(eq(schema.deliveryRecords.carrierId, filters.carrierId));
   if (filters.region) clauses.push(eq(schema.deliveryRecords.region, filters.region));

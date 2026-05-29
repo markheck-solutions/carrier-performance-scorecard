@@ -14,10 +14,10 @@ export type ScoreGrade = "A" | "B" | "C" | "D" | "F";
 export type ConfidenceLabel = "high" | "medium" | "low";
 
 export type ScoreFilters = {
-  carrierId?: string | null;
-  region?: Region | null;
-  productType?: ProductType | null;
-  period?: string | null; // period seedKey (e.g. "2026-06")
+  carrierId: string | null;
+  region: Region | null;
+  productType: ProductType | null;
+  period: string | null; // period seedKey (e.g. "2026-06")
 };
 
 export type PeriodWindow = {
@@ -28,7 +28,7 @@ export type PeriodWindow = {
 };
 
 export type ScoreScope = {
-  filters: Required<ScoreFilters>;
+  filters: ScoreFilters;
   periodWindow: PeriodWindow;
 };
 
@@ -82,6 +82,12 @@ export type CarrierScorecard = {
     regionFocus: string;
   };
   scope: ScoreScope;
+  mix: {
+    regions: Array<{ region: Region; count: number; share: number }>;
+    productTypes: Array<{ productType: ProductType; count: number; share: number }>;
+    topRegion: Region | null;
+    topProductType: ProductType | null;
+  };
   sampleCount: number;
   confidence: {
     label: ConfidenceLabel;

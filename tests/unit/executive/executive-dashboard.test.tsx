@@ -89,6 +89,12 @@ function fakeScorecard(params: { id: string; name: string; shortCode: string; gr
   return {
     carrier: { id: params.id, name: params.name, shortCode: params.shortCode, relationshipTier: "core", regionFocus: "na" },
     scope: components[0]!.scope,
+    mix: {
+      regions: [{ region: "na", count: 8, share: 1 }],
+      productTypes: [{ productType: "fiber", count: 6, share: 0.75 }, { productType: "wireless", count: 2, share: 0.25 }],
+      topRegion: "na",
+      topProductType: "fiber",
+    },
     sampleCount: 8,
     confidence: { label: "high", lowVolume: false, threshold: 4, notes: [] },
     components,

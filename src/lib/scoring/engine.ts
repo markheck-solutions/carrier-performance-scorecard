@@ -48,7 +48,7 @@ export type DeliveryInfo = {
   openedAtIso: string;
 };
 
-function normalizeFilters(filters: ScoreFilters): Required<ScoreFilters> {
+function normalizeFilters(filters: ScoreFilters): ScoreFilters {
   return {
     carrierId: filters.carrierId ?? null,
     region: filters.region ?? null,
@@ -358,6 +358,21 @@ export function buildCarrierScorecards(params: {
 
     const carrierEvidence = evidenceByCarrier.get(carrier.id) ?? [];
 
+    const regionCounts = new Map<Region, number>();
+    const productCounts = new Map<ProductType, number>();
+    for (const d of carrierDeliveries) {
+      regionCounts.set(d.region, (regionCounts.get(d.region) ?? 0) + 1);
+      productCounts.set(d.productType, (productCounts.get(d.productType) ?? 0) + 1);
+    }
+
+    const regions = Array.from(regionCounts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([region, count]) => ({ region, count, share: sampleCount > 0 ? count / sampleCount : 0 }));
+
+    const productTypes = Array.from(productCounts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([productType, count]) => ({ productType, count, share: sampleCount > 0 ? count / sampleCount : 0 }));
+
     const components = (Object.keys(SCORE_COMPONENTS) as ScoringComponentId[]).map((id) =>
       buildComponent({
         componentId: id,
@@ -375,6 +390,12 @@ export function buildCarrierScorecards(params: {
     scorecards.push({
       carrier,
       scope,
+      mix: {
+        regions,
+        productTypes,
+        topRegion: regions[0]?.region ?? null,
+        topProductType: productTypes[0]?.productType ?? null,
+      },
       sampleCount,
       confidence: {
         label: confidenceLabel,
