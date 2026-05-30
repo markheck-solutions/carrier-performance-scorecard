@@ -10,6 +10,7 @@ import { buildDashboardQueryString, parseDashboardStateFromSearchParams } from "
 
 import { ExecutiveDashboard, type RuntimePosture } from "./ExecutiveDashboard";
 import type { ScorecardsSummaryModel } from "./types";
+import { QbrBriefPanel } from "./QbrBriefPanel";
 
 export type { RuntimePosture };
 
@@ -1570,6 +1571,17 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                             }}
                           />
                         </div>
+
+                        <QbrBriefPanel
+                          key={effectiveDetailState.data.carrier.id}
+                          demoMode={props.runtime.status === "ready" ? props.runtime.data.demoMode : true}
+                          carrier={effectiveDetailState.data.carrier}
+                          filters={{
+                            region: stableFilters.region,
+                            productType: stableFilters.productType,
+                            period: stableFilters.period,
+                          }}
+                        />
                       </div>
                     ) : effectiveDetailState.data.carrier && !effectiveDetailState.data.scorecard ? (
                       <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
