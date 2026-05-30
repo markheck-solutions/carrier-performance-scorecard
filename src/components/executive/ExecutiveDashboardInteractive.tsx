@@ -77,9 +77,9 @@ type LoadState<T> =
 
 type DetailLoadState<T> =
   | { status: "idle" }
-  | { status: "loading"; carrierId: string }
-  | { status: "ready"; carrierId: string; data: T }
-  | { status: "error"; carrierId: string; message: string };
+  | { status: "loading"; requestKey: string; carrierId: string }
+  | { status: "ready"; requestKey: string; carrierId: string; data: T }
+  | { status: "error"; requestKey: string; carrierId: string; message: string };
 
 type EvidenceLoadState<T> =
   | { status: "idle" }
@@ -668,9 +668,15 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const [isPending, startTransition] = useTransition();
 
+  // Keep an eager copy so rapid sequential updates (filter changes, selection changes) don't
+  // accidentally drop earlier patches before the URL state is applied.
+  const stateRef = useRef(parseDashboardStateFromSearchParams(new URLSearchParams(searchString)).state);
+
   const [optionsReloadToken, setOptionsReloadToken] = useState(0);
   const [optionsState, setOptionsState] = useState<LoadState<ScorecardsOptionsModel>>({ status: "loading" });
   const [summaryReloadToken, setSummaryReloadToken] = useState(0);
+  const [detailReloadToken, setDetailReloadToken] = useState(0);
+  const [evidenceReloadToken, setEvidenceReloadToken] = useState(0);
   const [summaryState, setSummaryState] = useState<LoadState<ScorecardsSummaryModel>>({
     status: "ready",
     data: props.initialSummary,
@@ -698,25 +704,63 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     setEvidenceOrigin({ kind: "element", element: active });
   }, []);
 
-  const allowedCarrierIds = useMemo(() => {
-    if (optionsState.status !== "ready") return null;
-    if (!optionsState.data.ok) return null;
-    return optionsState.data.carriers.map((c) => c.id);
+  const optionsModel = useMemo<ScorecardsOptionsModel | null>(() => {
+    if (optionsState.status === "ready") return optionsState.data;
+    if (optionsState.status === "loading") return optionsState.previous ?? null;
+    return null;
   }, [optionsState]);
 
+  const allowedCarrierIds = useMemo(() => {
+    if (!optionsModel) return null;
+    if (!optionsModel.ok) return null;
+    return optionsModel.carriers.map((c) => c.id);
+  }, [optionsModel]);
+
   const allowedPeriods = useMemo(() => {
-    if (optionsState.status !== "ready") return null;
-    if (!optionsState.data.ok) return null;
-    return optionsState.data.periods.map((p) => p.seedKey);
-  }, [optionsState]);
+    if (!optionsModel) return null;
+    if (!optionsModel.ok) return null;
+    return optionsModel.periods.map((p) => p.seedKey);
+  }, [optionsModel]);
+
+  const allowlistsRef = useRef<{ allowedCarrierIds?: readonly string[]; allowedPeriods?: readonly string[] }>({});
+  useEffect(() => {
+    allowlistsRef.current = {
+      allowedCarrierIds: allowedCarrierIds ?? undefined,
+      allowedPeriods: allowedPeriods ?? undefined,
+    };
+  }, [allowedCarrierIds, allowedPeriods]);
 
   // URL is the source of truth. Keep a local string copy so back/forward and rapid sequential
   // updates are deterministic without relying on router timing.
   useEffect(() => {
-    const sync = () => setSearchString(new URLSearchParams(window.location.search).toString());
-    sync();
-    window.addEventListener("popstate", sync);
-    return () => window.removeEventListener("popstate", sync);
+    const syncFromLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const next = params.toString();
+      setSearchString(next);
+      // Keep the eager ref aligned with the URL so immediate follow-up actions (like a click right after
+      // a history navigation) do not merge patches into stale state.
+      stateRef.current = parseDashboardStateFromSearchParams(new URLSearchParams(next), allowlistsRef.current).state;
+    };
+
+    const onPopState = () => syncFromLocation();
+    const onPageShow = (event: PageTransitionEvent) => {
+      syncFromLocation();
+      if (!event.persisted) return;
+      // When a page is restored from the back/forward cache, any in-flight loads can be left incomplete.
+      // Proactively restart them so controls, detail, and evidence rehydrate without requiring a manual refresh.
+      setOptionsReloadToken((prev) => prev + 1);
+      setSummaryReloadToken((prev) => prev + 1);
+      setDetailReloadToken((prev) => prev + 1);
+      setEvidenceReloadToken((prev) => prev + 1);
+    };
+
+    syncFromLocation();
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("pageshow", onPageShow);
+    };
   }, []);
 
   const parsed = useMemo(() => {
@@ -740,9 +784,6 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     [carrierId, period, productType, region]
   );
 
-  // Keep an eager copy so rapid sequential updates (filter changes, selection changes) don't
-  // accidentally drop earlier patches before the URL state is applied.
-  const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -789,6 +830,41 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     []
   );
 
+  const selectCarrier = useCallback(
+    (
+      carrierId: string | null,
+      opts?: {
+        mode?: "push" | "replace";
+        setCarrierFilter?: boolean;
+      }
+    ) => {
+      updateUrl(
+        {
+          filters: opts?.setCarrierFilter ? { carrierId } : undefined,
+          selectedCarrierId: carrierId,
+          evidenceId: null,
+          evidenceDimension: null,
+          evidenceDelayReason: null,
+        },
+        { mode: opts?.mode }
+      );
+
+      // Start the detail load immediately so selection state, URL state, and loading UI stay in sync.
+      if (!carrierId) {
+        setDetailState({ status: "idle" });
+        return;
+      }
+
+      const nextFilters = stateRef.current.filters;
+      const requestKey = JSON.stringify({
+        carrierId,
+        filters: { ...nextFilters, carrierId: null },
+      });
+      setDetailState({ status: "loading", carrierId, requestKey });
+    },
+    [updateUrl]
+  );
+
   const clearSelection = useCallback(() => {
     updateUrl(
       { selectedCarrierId: null, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null },
@@ -816,7 +892,12 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
     async function run() {
       try {
-        setOptionsState({ status: "loading" });
+        setOptionsState((prev) => {
+          if (prev.status === "ready") return { status: "loading", previous: prev.data };
+          if (prev.status === "loading")
+            return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
+          return { status: "loading" };
+        });
         const res = await fetch("/api/scorecards/options", { signal: controller.signal });
         const payload = (await res.json()) as ScorecardsOptionsModel;
         if (cancelled) return;
@@ -840,7 +921,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   }, [optionsReloadToken]);
 
   const retryOptions = useCallback(() => {
-    setOptionsState({ status: "loading" });
+    setOptionsState((prev) => {
+      if (prev.status === "ready") return { status: "loading", previous: prev.data };
+      if (prev.status === "loading") return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
+      return { status: "loading" };
+    });
     setOptionsReloadToken((prev) => prev + 1);
   }, []);
 
@@ -915,9 +1000,13 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     const requestId = ++detailRequestSeq.current;
     const controller = new AbortController();
     const requestCarrierId = state.selectedCarrierId;
+    const requestKey = JSON.stringify({
+      carrierId: requestCarrierId,
+      filters: { ...stableFilters, carrierId: null },
+    });
 
     async function run() {
-      setDetailState({ status: "loading", carrierId: requestCarrierId });
+      setDetailState({ status: "loading", carrierId: requestCarrierId, requestKey });
       try {
         const scoped = buildFiltersQuery({ ...stableFilters, carrierId: null });
         const res = await fetch(`/api/carriers/${requestCarrierId}/scorecard${scoped}`, { signal: controller.signal });
@@ -927,20 +1016,25 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
           const message =
             (payload as { ok: false; error: { message: string } }).error?.message ??
             "Unable to load carrier detail right now.";
-          setDetailState({ status: "error", carrierId: requestCarrierId, message });
+          setDetailState({ status: "error", carrierId: requestCarrierId, requestKey, message });
           return;
         }
-        setDetailState({ status: "ready", carrierId: requestCarrierId, data: payload });
+        setDetailState({ status: "ready", carrierId: requestCarrierId, requestKey, data: payload });
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         if (requestId !== detailRequestSeq.current) return;
-        setDetailState({ status: "error", carrierId: requestCarrierId, message: "Unable to load carrier detail right now." });
+        setDetailState({
+          status: "error",
+          carrierId: requestCarrierId,
+          requestKey,
+          message: "Unable to load carrier detail right now.",
+        });
       }
     }
 
     run();
     return () => controller.abort();
-  }, [stableFilters, state.selectedCarrierId]);
+  }, [detailReloadToken, stableFilters, state.selectedCarrierId]);
 
   const evidenceCarrierId = state.selectedCarrierId ?? state.filters.carrierId ?? null;
 
@@ -1012,6 +1106,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     run();
     return () => controller.abort();
   }, [
+    evidenceReloadToken,
     evidenceCarrierId,
     state.evidenceDelayReason,
     state.evidenceDimension,
@@ -1022,14 +1117,16 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const effectiveDetailState = useMemo<LoadState<CarrierDetailReadModel>>(() => {
     if (!state.selectedCarrierId) return { status: "idle" };
-    if (detailState.status === "loading" && detailState.carrierId === state.selectedCarrierId) return { status: "loading" };
-    if (detailState.status === "error" && detailState.carrierId === state.selectedCarrierId)
-      return { status: "error", message: detailState.message };
-    if (detailState.status === "ready" && detailState.carrierId === state.selectedCarrierId)
-      return { status: "ready", data: detailState.data };
+    const requestKey = JSON.stringify({
+      carrierId: state.selectedCarrierId,
+      filters: { ...stableFilters, carrierId: null },
+    });
+    if (detailState.status === "loading" && detailState.requestKey === requestKey) return { status: "loading" };
+    if (detailState.status === "error" && detailState.requestKey === requestKey) return { status: "error", message: detailState.message };
+    if (detailState.status === "ready" && detailState.requestKey === requestKey) return { status: "ready", data: detailState.data };
     // Selection changed but the request state hasn't caught up yet: show loading instead of stale carrier detail.
     return { status: "loading" };
-  }, [detailState, state.selectedCarrierId]);
+  }, [detailState, stableFilters, state.selectedCarrierId]);
 
   const effectiveEvidenceState = useMemo<LoadState<EvidenceReadModel>>(() => {
     const mode = state.evidenceId ? "id" : state.evidenceDimension ? "dimension" : state.evidenceDelayReason ? "delayReason" : null;
@@ -1080,22 +1177,25 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   const hasResults = (summary?.counts.deliveryRecords ?? 0) > 0;
   const activePills = useMemo(() => {
     const carrierLabel =
-      state.filters.carrierId && optionsState.status === "ready" && optionsState.data.ok
-        ? optionsState.data.carriers.find((c) => c.id === state.filters.carrierId)?.shortCode ?? null
+      state.filters.carrierId && optionsModel?.ok
+        ? optionsModel.carriers.find((c) => c.id === state.filters.carrierId)?.shortCode ?? null
         : null;
     const periodLabel =
-      state.filters.period && optionsState.status === "ready" && optionsState.data.ok
-        ? optionsState.data.periods.find((p) => p.seedKey === state.filters.period)?.label ?? null
-        : null;
+      state.filters.period && optionsModel?.ok ? optionsModel.periods.find((p) => p.seedKey === state.filters.period)?.label ?? null : null;
     return buildActiveFilterPills({ filters: state.filters, carrierLabel, periodLabel });
-  }, [optionsState, state.filters]);
+  }, [optionsModel, state.filters]);
 
   const evidenceOpen = Boolean(state.evidenceId || state.evidenceDimension || state.evidenceDelayReason);
-  const dashboardSettled =
-    optionsState.status !== "loading" &&
-    summaryState.status !== "loading" &&
-    (!state.selectedCarrierId || effectiveDetailState.status !== "loading") &&
-    (!evidenceOpen || effectiveEvidenceState.status !== "loading");
+  const optionsReady = optionsState.status === "ready" && optionsState.data.ok;
+  const summaryReady =
+    summaryState.status === "ready" &&
+    summaryState.data.scope.filters.carrierId === stableFilters.carrierId &&
+    summaryState.data.scope.filters.region === stableFilters.region &&
+    summaryState.data.scope.filters.productType === stableFilters.productType &&
+    summaryState.data.scope.filters.period === stableFilters.period;
+  const detailReady = !state.selectedCarrierId || effectiveDetailState.status === "ready";
+  const evidenceReady = !evidenceOpen || effectiveEvidenceState.status === "ready";
+  const dashboardSettled = optionsReady && summaryReady && detailReady && evidenceReady;
 
   return (
     <div className="relative flex-1 bg-[#07080A] text-white" data-testid="dashboard-root">
@@ -1113,7 +1213,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
         runtime={props.runtime}
         selectedCarrierId={state.selectedCarrierId}
         onSelectCarrier={(carrierId) => {
-          updateUrl({ selectedCarrierId: carrierId, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null });
+          selectCarrier(carrierId);
         }}
         onOpenEvidenceForDelayReason={(delayReason) => {
           captureEvidenceOrigin();
@@ -1127,6 +1227,12 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
             evidenceId: null,
             evidenceDelayReason: null,
           });
+          const nextFilters = stateRef.current.filters;
+          const requestKey = JSON.stringify({
+            carrierId,
+            filters: { ...nextFilters, carrierId: null },
+          });
+          setDetailState({ status: "loading", carrierId, requestKey });
         }}
         commandSurface={
           <section
@@ -1188,25 +1294,19 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 value={state.filters.carrierId ?? ""}
                 onChange={(next) => {
                   const carrierId = next.length > 0 ? next : null;
-                  updateUrl({
-                    filters: { carrierId },
-                    selectedCarrierId: carrierId,
-                    evidenceId: null,
-                    evidenceDimension: null,
-                    evidenceDelayReason: null,
-                  });
+                  selectCarrier(carrierId, { setCarrierFilter: true });
                 }}
               >
                 <option value="">All carriers</option>
-                {state.filters.carrierId && optionsState.status === "ready" && optionsState.data.ok ? (
-                  optionsState.data.carriers.some((c) => c.id === state.filters.carrierId) ? null : (
+                {state.filters.carrierId && optionsModel?.ok ? (
+                  optionsModel.carriers.some((c) => c.id === state.filters.carrierId) ? null : (
                     <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
                   )
                 ) : state.filters.carrierId ? (
                   <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
                 ) : null}
-                {optionsState.status === "ready" && optionsState.data.ok
-                  ? optionsState.data.carriers.map((c) => (
+                {optionsModel?.ok
+                  ? optionsModel.carriers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.shortCode})
                       </option>
@@ -1249,15 +1349,15 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 onChange={(next) => updateUrl({ filters: { period: next.length > 0 ? next : null } })}
               >
                 <option value="">All periods</option>
-                {state.filters.period && optionsState.status === "ready" && optionsState.data.ok ? (
-                  optionsState.data.periods.some((p) => p.seedKey === state.filters.period) ? null : (
+                {state.filters.period && optionsModel?.ok ? (
+                  optionsModel.periods.some((p) => p.seedKey === state.filters.period) ? null : (
                     <option value={state.filters.period}>Selected period ({state.filters.period})</option>
                   )
                 ) : state.filters.period ? (
                   <option value={state.filters.period}>Selected period ({state.filters.period})</option>
                 ) : null}
-                {optionsState.status === "ready" && optionsState.data.ok
-                  ? optionsState.data.periods.map((p) => (
+                {optionsModel?.ok
+                  ? optionsModel.periods.map((p) => (
                       <option key={p.seedKey} value={p.seedKey}>
                         {p.label}
                       </option>
@@ -1365,12 +1465,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                       scorecard={sc}
                       selected={state.selectedCarrierId === sc.carrier.id}
                       onSelect={() => {
-                        updateUrl({
-                          selectedCarrierId: sc.carrier.id,
-                          evidenceId: null,
-                          evidenceDimension: null,
-                          evidenceDelayReason: null,
-                        });
+                        selectCarrier(sc.carrier.id);
                       }}
                     />
                   ))

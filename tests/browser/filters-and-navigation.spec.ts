@@ -185,37 +185,32 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
   await page.getByLabel("Region").selectOption("emea");
-  await page.getByLabel("Product type").selectOption("fiber");
 
-  // Pick a period + carrier that has data in this scope so score-component proof entry points exist.
+  // Fixed validator path: region=EMEA, period=2026-05.
+  const period = "2026-05";
+
+  // Ensure the seed includes the fixed period.
   const optionsRes = await page.request.get("/api/scorecards/options");
   expect(optionsRes.ok()).toBeTruthy();
   const options = (await optionsRes.json()) as { ok: boolean; periods?: Array<{ seedKey: string }> };
   expect(options.ok).toBeTruthy();
   const periods = options.periods?.map((p) => p.seedKey) ?? [];
-  expect(periods.length).toBeGreaterThan(0);
+  expect(periods).toContain(period);
 
-  let picked: { period: string; carrierId: string } | null = null;
-  for (const period of periods) {
-    const summaryRes = await page.request.get(`/api/scorecards/summary?region=emea&productType=fiber&period=${period}`);
-    if (!summaryRes.ok()) continue;
-    const summary = (await summaryRes.json()) as { ok: boolean; carriers?: Array<{ carrier: { id: string } }> };
-    if (!summary.ok) continue;
-    const carrierId = summary.carriers?.[0]?.carrier.id;
-    if (carrierId) {
-      picked = { period, carrierId };
-      break;
-    }
-  }
-  expect(picked).toBeTruthy();
+  const summaryRes = await page.request.get(`/api/scorecards/summary?region=emea&period=${period}`);
+  expect(summaryRes.ok()).toBeTruthy();
+  const summary = (await summaryRes.json()) as { ok: boolean; carriers?: Array<{ carrier: { id: string } }> };
+  expect(summary.ok).toBeTruthy();
+  const carrierId = summary.carriers?.[0]?.carrier.id ?? null;
+  expect(carrierId).toBeTruthy();
 
   // Include a period filter to ensure combobox + chips + detail/evidence stay coherent.
-  await page.goto(`/?region=emea&productType=fiber&period=${picked!.period}&selectedCarrierId=${picked!.carrierId}`);
+  await page.goto(`/?region=emea&period=${period}&selectedCarrierId=${carrierId}`);
   await expect(page).toHaveURL(/selectedCarrierId=/);
-  await expect(page).toHaveURL(new RegExp(`period=${picked!.period}`));
+  await expect(page).toHaveURL(new RegExp(`period=${period}`));
 
   // Even while options are delayed, the period control should reflect the URL value (not blank or reset).
-  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
+  await expect(page.getByLabel("Period")).toHaveValue(period);
   await expect(page.getByRole("button", { name: /^Period:/ })).toBeVisible();
 
   const componentProof = page.locator('[data-evidence-origin^="dimension:"]').first();
@@ -229,7 +224,7 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await page.reload();
 
   await expect(page).toHaveURL(deepLink);
-  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
+  await expect(page.getByLabel("Period")).toHaveValue(period);
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
   await expect(page.getByTestId("dashboard-settled")).toHaveCount(1);
@@ -238,14 +233,14 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   // Back/forward should restore the same canonical state without diverging controls.
   await page.goBack();
   await expect(page).not.toHaveURL(/evidenceDimension=/);
-  await expect(page).toHaveURL(new RegExp(`period=${picked!.period}`));
-  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
+  await expect(page).toHaveURL(new RegExp(`period=${period}`));
+  await expect(page.getByLabel("Period")).toHaveValue(period);
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
   await expect(page.getByTestId("dashboard-settled")).toHaveCount(1);
 
   await page.goForward();
   await expect(page).toHaveURL(deepLink);
-  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
+  await expect(page.getByLabel("Period")).toHaveValue(period);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
   await expect(page.getByTestId("dashboard-settled")).toHaveCount(1);
   await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
@@ -535,8 +530,10 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
 
   await page.getByLabel("Region").selectOption("emea");
   await expect(page).toHaveURL(/region=emea/, { timeout: 10_000 });
-  await page.getByLabel("Product type").selectOption("fiber");
-  await expect(page).toHaveURL(/productType=fiber/, { timeout: 10_000 });
+  const periodSelect = page.getByLabel("Period");
+  await expect(periodSelect.locator("option[value='2026-05']")).toHaveCount(1, { timeout: 10_000 });
+  await periodSelect.selectOption("2026-05");
+  await expect(page).toHaveURL(/period=2026-05/, { timeout: 10_000 });
 
   const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
@@ -546,7 +543,7 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
   if (!selectedCarrierId) throw new Error("Expected selectedCarrierId after selecting a comparison card.");
 
   // Pull the carrier identity from the API so we can assert the UI is showing the exact matching carrier.
-  const res = await page.request.get(`/api/carriers/${selectedCarrierId}/scorecard?region=emea&productType=fiber`);
+  const res = await page.request.get(`/api/carriers/${selectedCarrierId}/scorecard?region=emea&period=2026-05`);
   expect(res.ok()).toBeTruthy();
   const payload = (await res.json()) as { ok: boolean; carrier: { name: string; shortCode: string } | null };
   expect(payload.ok).toBeTruthy();
