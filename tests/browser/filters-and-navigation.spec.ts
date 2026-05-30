@@ -18,7 +18,7 @@ test("filters update comparison and URL; back/forward restores state", async ({ 
   await expect(page).toHaveURL(/productType=fiber/);
 
   // Select a carrier.
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
@@ -38,7 +38,7 @@ test("browser navigation restores evidence drawer state", async ({ page }) => {
   await page.goto("/");
   await page.getByLabel("Region").selectOption("emea");
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
 
@@ -46,6 +46,7 @@ test("browser navigation restores evidence drawer state", async ({ page }) => {
   await evidenceIdButton.click();
   await expect(page).toHaveURL(/evidenceId=/);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 
   // Back should close evidence but keep selection.
   await page.goBack();
@@ -56,13 +57,14 @@ test("browser navigation restores evidence drawer state", async ({ page }) => {
   await page.goForward();
   await expect(page).toHaveURL(/evidenceId=/);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 });
 
 test("evidence opens from score components as a scoped proof surface", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
   const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
@@ -76,13 +78,14 @@ test("evidence opens from score components as a scoped proof surface", async ({ 
   await expect(page).toHaveURL(new RegExp(`selectedCarrierId=${selectedCarrierId}`));
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
   await expect(page.getByRole("dialog", { name: /evidence drawer/i })).toBeVisible();
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 });
 
 test("evidence drawer supports Escape close and returns focus to origin", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
 
@@ -92,6 +95,7 @@ test("evidence drawer supports Escape close and returns focus to origin", async 
   await evidenceIdButton.click();
 
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 
   // Escape closes the drawer.
   await page.keyboard.press("Escape");
@@ -112,6 +116,7 @@ test("evidence opens from executive insights (delay reasons) without workflow co
 
   await expect(page).toHaveURL(/evidenceDelayReason=/);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 
   // Executive-style proof surface: no operational queue controls in the drawer.
   const drawer = page.getByRole("dialog", { name: /evidence drawer/i });
@@ -137,6 +142,7 @@ test("evidence opens from governance attention items and supports required evide
     const drawer = page.getByRole("dialog", { name: /evidence drawer/i });
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole("button", { name: /^Close$/ })).toBeVisible();
+    await expect(drawer.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 
     // Wait for the drawer to resolve to either evidence items or the scoped empty state.
     await Promise.race([
@@ -217,6 +223,7 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await componentProof.click();
   await expect(page).toHaveURL(/evidenceDimension=/);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 
   const deepLink = page.url();
   await page.reload();
@@ -225,6 +232,8 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("dashboard-settled")).toHaveCount(1);
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 
   // Back/forward should restore the same canonical state without diverging controls.
   await page.goBack();
@@ -232,11 +241,14 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await expect(page).toHaveURL(new RegExp(`period=${picked!.period}`));
   await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
+  await expect(page.getByTestId("dashboard-settled")).toHaveCount(1);
 
   await page.goForward();
   await expect(page).toHaveURL(deepLink);
   await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+  await expect(page.getByTestId("dashboard-settled")).toHaveCount(1);
+  await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 });
 
 test("conflicting evidence deep-link params sanitize safely with visible recovery (VAL-CARRIER-024)", async ({ page }) => {
@@ -244,7 +256,7 @@ test("conflicting evidence deep-link params sanitize safely with visible recover
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
   // Build an evidence deep link from real UI state so the ids are valid.
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
   const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
@@ -276,7 +288,7 @@ test("invalid evidenceId deep link recovers with a reset banner (VAL-CARRIER-024
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
 
@@ -319,7 +331,7 @@ test("low-volume carriers show limited confidence copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
-  const limited = page.getByRole("button", { name: /limited sample/i }).first();
+  const limited = page.getByTestId("comparison-card").filter({ hasText: /limited sample/i }).first();
   await expect(limited).toBeVisible();
   await limited.click();
 
@@ -330,7 +342,7 @@ test("filters that exclude selection clear dependent panels", async ({ page }) =
   await page.goto("/");
   await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
 
@@ -370,7 +382,7 @@ test("valid deep links restore selection and evidence state", async ({ page }) =
   await page.getByLabel("Region").selectOption("emea");
   await page.getByLabel("Product type").selectOption("fiber");
 
-  const cards = page.getByRole("button", { name: /rank/i });
+  const cards = page.getByTestId("comparison-card");
   await expect(cards.first()).toBeVisible({ timeout: 10_000 });
 
   await cards.first().click();
@@ -441,7 +453,7 @@ test("failing summary request shows retryable comparison error", async ({ page }
 
   // Retry should re-fetch and restore the comparison list.
   await err.locator("..").getByRole("button", { name: /^Retry$/ }).click();
-  await expect(page.getByRole("button", { name: /rank/i }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("comparison-card").first()).toBeVisible({ timeout: 10_000 });
 });
 
 test("zero-result scope shows explicit empty states across executive panels (VAL-CARRIER-004)", async ({ page }) => {
@@ -502,7 +514,7 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
   await page.goto("/");
 
   // Baseline (unfiltered) selection should set selectedCarrierId and render matching detail.
-  const baselineCard = page.getByRole("button", { name: /rank/i }).first();
+  const baselineCard = page.getByTestId("comparison-card").first();
   await baselineCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
   const baselineCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
@@ -526,7 +538,7 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
   await page.getByLabel("Product type").selectOption("fiber");
   await expect(page).toHaveURL(/productType=fiber/, { timeout: 10_000 });
 
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
 
   await expect(page).toHaveURL(/selectedCarrierId=/);
@@ -552,7 +564,7 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
 test("switching carriers clears stale detail and leaves exactly one selected card (VAL-CARRIER-012, VAL-CARRIER-027)", async ({ page }) => {
   await page.goto("/");
 
-  const cards = page.getByRole("button", { name: /rank/i });
+  const cards = page.getByTestId("comparison-card");
   await expect(cards.first()).toBeVisible({ timeout: 10_000 });
 
   // Select carrier A.

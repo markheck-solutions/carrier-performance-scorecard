@@ -246,7 +246,10 @@ function ComparisonCard(props: {
         props.selected ? "border-white/40" : "border-white/10 hover:border-white/20"
       }`}
       aria-pressed={props.selected}
+      aria-label={`Select carrier ${props.scorecard.carrier.name} (${props.scorecard.carrier.shortCode})`}
       data-selected={props.selected ? "true" : "false"}
+      data-testid="comparison-card"
+      data-carrier-id={props.scorecard.carrier.id}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -486,7 +489,13 @@ function EvidencePanel(props: {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Evidence drawer">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Evidence drawer"
+      data-testid="evidence-drawer"
+    >
       <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-[#07080A] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-5 py-4">
           <div>
@@ -504,7 +513,17 @@ function EvidencePanel(props: {
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-auto px-5 py-4">
+        <div
+          className="max-h-[70vh] overflow-auto px-5 py-4"
+          data-testid="evidence-drawer-body"
+          data-evidence-status={state.status}
+          aria-busy={state.status === "loading"}
+        >
+          {state.status === "ready" ? (
+            <span data-testid="evidence-drawer-ready" hidden>
+              Evidence content ready
+            </span>
+          ) : null}
           {state.status === "loading" ? (
             <div className="text-sm text-white/70">Loading evidence…</div>
           ) : state.status === "error" ? (
@@ -1071,11 +1090,31 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     return buildActiveFilterPills({ filters: state.filters, carrierLabel, periodLabel });
   }, [optionsState, state.filters]);
 
+  const evidenceOpen = Boolean(state.evidenceId || state.evidenceDimension || state.evidenceDelayReason);
+  const dashboardSettled =
+    optionsState.status !== "loading" &&
+    summaryState.status !== "loading" &&
+    (!state.selectedCarrierId || effectiveDetailState.status !== "loading") &&
+    (!evidenceOpen || effectiveEvidenceState.status !== "loading");
+
   return (
-    <div className="relative flex-1 bg-[#07080A] text-white">
+    <div className="relative flex-1 bg-[#07080A] text-white" data-testid="dashboard-root">
+      {dashboardSettled ? (
+        <span data-testid="dashboard-settled" hidden>
+          Dashboard settled
+        </span>
+      ) : (
+        <span data-testid="dashboard-settling" hidden>
+          Dashboard settling
+        </span>
+      )}
       <ExecutiveDashboard
         summary={summary ?? props.initialSummary}
         runtime={props.runtime}
+        selectedCarrierId={state.selectedCarrierId}
+        onSelectCarrier={(carrierId) => {
+          updateUrl({ selectedCarrierId: carrierId, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null });
+        }}
         onOpenEvidenceForDelayReason={(delayReason) => {
           captureEvidenceOrigin();
           updateUrl({ evidenceDelayReason: delayReason, evidenceId: null, evidenceDimension: null });
@@ -1159,7 +1198,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 }}
               >
                 <option value="">All carriers</option>
-                {state.filters.carrierId && !(optionsState.status === "ready" && optionsState.data.ok) ? (
+                {state.filters.carrierId && optionsState.status === "ready" && optionsState.data.ok ? (
+                  optionsState.data.carriers.some((c) => c.id === state.filters.carrierId) ? null : (
+                    <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
+                  )
+                ) : state.filters.carrierId ? (
                   <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
                 ) : null}
                 {optionsState.status === "ready" && optionsState.data.ok
@@ -1206,7 +1249,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 onChange={(next) => updateUrl({ filters: { period: next.length > 0 ? next : null } })}
               >
                 <option value="">All periods</option>
-                {state.filters.period && !(optionsState.status === "ready" && optionsState.data.ok) ? (
+                {state.filters.period && optionsState.status === "ready" && optionsState.data.ok ? (
+                  optionsState.data.periods.some((p) => p.seedKey === state.filters.period) ? null : (
+                    <option value={state.filters.period}>Selected period ({state.filters.period})</option>
+                  )
+                ) : state.filters.period ? (
                   <option value={state.filters.period}>Selected period ({state.filters.period})</option>
                 ) : null}
                 {optionsState.status === "ready" && optionsState.data.ok

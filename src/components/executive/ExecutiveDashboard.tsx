@@ -118,6 +118,8 @@ export function ExecutiveDashboard(props: {
   comparisonAndDetail?: React.ReactNode;
   onOpenEvidenceForDelayReason?: (delayReason: string) => void;
   onOpenEvidenceForGovernanceItem?: (carrierId: string, dimension: ScoringComponentId) => void;
+  onSelectCarrier?: (carrierId: string) => void;
+  selectedCarrierId?: string | null;
 }) {
   const model = props.summary;
   const hasResults = model.counts.deliveryRecords > 0;
@@ -229,6 +231,8 @@ export function ExecutiveDashboard(props: {
                     scorecards={derived.model.carriers}
                     portfolioScore={derived.portfolio.score}
                     portfolioGrade={derived.portfolio.grade}
+                    selectedCarrierId={props.selectedCarrierId ?? null}
+                    onSelectCarrier={props.onSelectCarrier}
                   />
                 ) : (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_1px_0_rgba(255,255,255,0.06)]">
@@ -307,9 +311,22 @@ export function ExecutiveDashboard(props: {
               >
                 {hasResults && best ? (
                   <div>
-                    <div className="text-lg font-semibold text-white">
-                      {best.carrier.name} <span className="text-white/50">({best.carrier.shortCode})</span>
-                    </div>
+                    {props.onSelectCarrier ? (
+                      <button
+                        type="button"
+                        onClick={() => props.onSelectCarrier?.(best.carrier.id)}
+                        className="text-left text-lg font-semibold text-white hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                        aria-label={`Select carrier ${best.carrier.name} (${best.carrier.shortCode})`}
+                        data-testid="best-performer-select"
+                        data-carrier-id={best.carrier.id}
+                      >
+                        {best.carrier.name} <span className="text-white/50">({best.carrier.shortCode})</span>
+                      </button>
+                    ) : (
+                      <div className="text-lg font-semibold text-white">
+                        {best.carrier.name} <span className="text-white/50">({best.carrier.shortCode})</span>
+                      </div>
+                    )}
                     <div className="mt-2 text-sm leading-6 text-white/70">
                       Recommended posture: keep cadence, reinforce what is working, and use this carrier as a reference in QBR.
                     </div>
@@ -346,9 +363,22 @@ export function ExecutiveDashboard(props: {
               >
                 {hasResults && worst ? (
                   <div>
-                    <div className="text-lg font-semibold text-white">
-                      {worst.carrier.name} <span className="text-white/50">({worst.carrier.shortCode})</span>
-                    </div>
+                    {props.onSelectCarrier ? (
+                      <button
+                        type="button"
+                        onClick={() => props.onSelectCarrier?.(worst.carrier.id)}
+                        className="text-left text-lg font-semibold text-white hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                        aria-label={`Select carrier ${worst.carrier.name} (${worst.carrier.shortCode})`}
+                        data-testid="worst-performer-select"
+                        data-carrier-id={worst.carrier.id}
+                      >
+                        {worst.carrier.name} <span className="text-white/50">({worst.carrier.shortCode})</span>
+                      </button>
+                    ) : (
+                      <div className="text-lg font-semibold text-white">
+                        {worst.carrier.name} <span className="text-white/50">({worst.carrier.shortCode})</span>
+                      </div>
+                    )}
                     <div className="mt-2 text-sm leading-6 text-white/70">
                       Recommended posture: align on recovery plan, tighten cadence, and confirm owner actions for the next period.
                     </div>
@@ -378,7 +408,20 @@ export function ExecutiveDashboard(props: {
                       <li key={item.carrierId} className="rounded-xl border border-white/10 bg-black/30 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="text-sm font-semibold text-white">
-                            {item.carrierName}{" "}
+                            {props.onSelectCarrier ? (
+                              <button
+                                type="button"
+                                onClick={() => props.onSelectCarrier?.(item.carrierId)}
+                                className="font-semibold text-white hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                                aria-label={`Select carrier ${item.carrierName}`}
+                                data-testid="governance-attention-select"
+                                data-carrier-id={item.carrierId}
+                              >
+                                {item.carrierName}
+                              </button>
+                            ) : (
+                              item.carrierName
+                            )}{" "}
                             <span className="ml-2 rounded-full bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/70 ring-1 ring-white/10">
                               {item.priorityLabel}
                             </span>

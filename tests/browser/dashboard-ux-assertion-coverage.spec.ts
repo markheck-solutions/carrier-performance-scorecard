@@ -216,7 +216,7 @@ test("filter changes update KPIs, health, comparison, trends, delay patterns, de
   // 6) Comparison updates and selecting a carrier loads matching detail.
   const comparisonRegion = page.getByRole("region", { name: /carrier comparison and detail/i });
   await expect(comparisonRegion.getByText(new RegExp(`\\b${filtered.counts.carriers}\\s+carriers\\b`))).toBeVisible();
-  const firstCard = page.getByRole("button", { name: /rank/i }).first();
+  const firstCard = page.getByTestId("comparison-card").first();
   await firstCard.click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
   const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
@@ -332,10 +332,10 @@ test("carrier surfaces show safe loading and error states for filter options, co
   await page.getByLabel("Region").selectOption("emea");
   await expect(page.getByText(/unable to load scorecards for this scope/i).first()).toBeVisible();
   await page.getByRole("button", { name: /^Retry$/ }).first().click();
-  await expect(page.getByRole("button", { name: /rank/i }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("comparison-card").first()).toBeVisible({ timeout: 10_000 });
 
   // Select carrier A successfully.
-  const cards = page.getByRole("button", { name: /rank/i });
+  const cards = page.getByTestId("comparison-card");
   await cards.nth(0).click();
   await expect(page).toHaveURL(/selectedCarrierId=/);
   const selectedA = new URL(page.url()).searchParams.get("selectedCarrierId");

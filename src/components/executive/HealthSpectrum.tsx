@@ -33,8 +33,17 @@ function segmentStops() {
   });
 }
 
-export function HealthSpectrum(props: { scorecards: readonly CarrierScorecard[]; portfolioScore: number; portfolioGrade: ScoreGrade }) {
+export function HealthSpectrum(props: {
+  scorecards: readonly CarrierScorecard[];
+  portfolioScore: number;
+  portfolioGrade: ScoreGrade;
+  selectedCarrierId?: string | null;
+  onSelectCarrier?: (carrierId: string) => void;
+}) {
   const segments = segmentStops();
+  const interactive = Boolean(props.onSelectCarrier);
+  const onSelectCarrier = props.onSelectCarrier;
+  const selectedCarrierId = props.selectedCarrierId ?? null;
   const markers = [...props.scorecards]
     .slice(0, 28)
     .map((c, idx) => {
@@ -42,7 +51,7 @@ export function HealthSpectrum(props: { scorecards: readonly CarrierScorecard[];
       const row = idx % 2;
       const top = row === 0 ? 14 : 30;
       const style = { left: `${left}%`, top } satisfies CSSProperties;
-      return { id: c.carrier.id, name: c.carrier.shortCode, grade: c.grade, style };
+      return { id: c.carrier.id, shortCode: c.carrier.shortCode, name: c.carrier.name, grade: c.grade, style };
     });
 
   const portfolioLeft = clamp01(props.portfolioScore / 100) * 100;
@@ -101,13 +110,32 @@ export function HealthSpectrum(props: { scorecards: readonly CarrierScorecard[];
           </div>
 
           <div className="absolute inset-0">
-            {markers.map((m) => (
-              <div key={m.id} className="absolute -translate-x-1/2" style={m.style}>
-                <div className={`relative rounded-md px-1.5 py-0.5 text-[10px] font-semibold ring-1 ${gradeColor(m.grade)}`}>
-                  {m.name}
+            {markers.map((m) => {
+              const selected = selectedCarrierId === m.id;
+              const markerClasses = `relative rounded-md px-1.5 py-0.5 text-[10px] font-semibold ring-1 ${gradeColor(m.grade)} ${
+                selected ? "ring-white/50" : ""
+              }`;
+
+              return interactive ? (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onSelectCarrier?.(m.id)}
+                  className="absolute -translate-x-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  style={m.style}
+                  aria-label={`Select carrier ${m.name} (${m.shortCode})`}
+                  aria-pressed={selected}
+                  data-testid="health-spectrum-carrier"
+                  data-carrier-id={m.id}
+                >
+                  <span className={markerClasses}>{m.shortCode}</span>
+                </button>
+              ) : (
+                <div key={m.id} className="absolute -translate-x-1/2" style={m.style}>
+                  <div className={markerClasses}>{m.shortCode}</div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             <div className="absolute -translate-x-1/2" style={{ left: `${portfolioLeft}%`, top: 2 }}>
               <div className="h-11 w-0.5 rounded-full bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]" aria-hidden="true" />
