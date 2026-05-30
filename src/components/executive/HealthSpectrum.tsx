@@ -121,11 +121,11 @@ export function HealthSpectrum(props: {
                   key={m.id}
                   type="button"
                   onClick={() => onSelectCarrier?.(m.id)}
-                  className="absolute -translate-x-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  className="absolute -translate-x-1/2 z-20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   style={m.style}
                   aria-label={`Select carrier ${m.name} (${m.shortCode})`}
                   aria-pressed={selected}
-                  data-testid="health-spectrum-carrier"
+                  data-testid={`health-spectrum-carrier-marker-${m.shortCode.toLowerCase()}`}
                   data-carrier-id={m.id}
                 >
                   <span className={markerClasses}>{m.shortCode}</span>
@@ -137,7 +137,12 @@ export function HealthSpectrum(props: {
               );
             })}
 
-            <div className="absolute -translate-x-1/2" style={{ left: `${portfolioLeft}%`, top: 2 }}>
+            <div
+              className="absolute -translate-x-1/2 pointer-events-none z-10"
+              style={{ left: `${portfolioLeft}%`, top: 2 }}
+              aria-hidden="true"
+              data-testid="health-spectrum-portfolio-marker"
+            >
               <div className="h-11 w-0.5 rounded-full bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]" aria-hidden="true" />
               <div className="mt-1 text-[10px] font-semibold text-white/80">portfolio</div>
             </div>
