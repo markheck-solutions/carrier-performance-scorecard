@@ -4,6 +4,7 @@ import type { QbrBriefSections, QbrProviderId } from "./public";
 import type { QbrSafeContextV1 } from "./context";
 import { assertQbrSafeContextWhitelisted } from "./context";
 import { coerceBriefSections, extractJsonFromText } from "./sanitize";
+import { readLocalProviderConfigRaw } from "@/lib/env/server-env";
 
 export type LocalQbrResult = {
   provider: { id: QbrProviderId };
@@ -32,9 +33,7 @@ type LocalProviderConfig = {
 };
 
 function getLocalProviderConfigOrThrow(): LocalProviderConfig {
-  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL ?? "").trim();
-  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY ?? "").trim();
-  const model = (process.env.OPENAI_COMPATIBLE_MODEL ?? "").trim();
+  const { baseUrl, apiKey, model } = readLocalProviderConfigRaw();
   if (!baseUrl || !apiKey || !model) throw new LocalProviderNotConfiguredError();
   return { baseUrl, apiKey, model };
 }

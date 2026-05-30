@@ -122,7 +122,7 @@ function getComponent(scorecard: CarrierScorecard, id: ScoreComponentResult["id"
 
 function formatMetric(component: ScoreComponentResult | null) {
   const metric = getMetric(component);
-  if (!metric) return "—";
+  if (!metric) return "N/A";
   if (metric.kind === "ratio") {
     const pct = metric.denominator > 0 ? metric.numerator / metric.denominator : 0;
     return `${Math.round(pct * 100)}%`;
@@ -286,7 +286,7 @@ function ComparisonCard(props: {
             </span>
             Product mix:{" "}
             <span className="font-semibold text-white/75">
-              {topProduct ? `${formatEnumLabel(topProduct.productType)} (${Math.round(topProduct.share * 100)}%)` : "—"}
+              {topProduct ? `${formatEnumLabel(topProduct.productType)} (${Math.round(topProduct.share * 100)}%)` : "N/A"}
             </span>{" "}
             <span className="mx-1 text-white/25" aria-hidden="true">
               •
@@ -616,13 +616,13 @@ function EvidencePanel(props: {
                             <span>
                               Forecast{" "}
                               <span className="font-semibold text-white/80 tabular-nums">
-                                {item.forecastDate ? item.forecastDate.slice(0, 10) : "—"}
+                                {item.forecastDate ? item.forecastDate.slice(0, 10) : "N/A"}
                               </span>
                             </span>
                             <span>
                               Completed{" "}
                               <span className="font-semibold text-white/80 tabular-nums">
-                                {item.completedDate ? item.completedDate.slice(0, 10) : "—"}
+                                {item.completedDate ? item.completedDate.slice(0, 10) : "N/A"}
                               </span>
                             </span>
                           </div>
@@ -1537,7 +1537,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                                 <span className="font-semibold text-white/75">
                                   {effectiveDetailState.data.scorecard.mix.productTypes[0]
                                     ? `${formatEnumLabel(effectiveDetailState.data.scorecard.mix.productTypes[0].productType)} (${Math.round(effectiveDetailState.data.scorecard.mix.productTypes[0].share * 100)}%)`
-                                    : "—"}
+                                    : "N/A"}
                                 </span>
                               </div>
                             </div>

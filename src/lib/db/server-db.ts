@@ -3,15 +3,9 @@ import "server-only";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { schema } from "./schema";
+import { readDatabaseUrlOrThrow } from "@/lib/env/server-env";
 
-function getDatabaseUrlOrThrow() {
-  const url = process.env.DATABASE_URL;
-  if (!url || url.trim().length === 0) {
-    throw new Error("Database connection is not configured.");
-  }
-  return url;
-}
+import { schema } from "./schema";
 
 export function createServerDb(databaseUrl: string) {
   const sql = postgres(databaseUrl, {
@@ -31,7 +25,7 @@ declare global {
 
 export function getServerDb() {
   if (globalThis.__carrierPerfScorecardDb) return globalThis.__carrierPerfScorecardDb;
-  const created = createServerDb(getDatabaseUrlOrThrow());
+  const created = createServerDb(readDatabaseUrlOrThrow());
   globalThis.__carrierPerfScorecardDb = created;
   return created;
 }

@@ -4,13 +4,10 @@ import type { QbrProviderId } from "./public";
 import type { QbrSafeContextV1 } from "./context";
 import { generateLocalQbrBrief, isLocalProviderNotConfiguredError } from "./local-provider";
 import { generateMockQbrBrief } from "./mock-provider";
+import { readAiProviderFromEnv } from "@/lib/env/server-env";
 
 function readProviderFromEnv(): QbrProviderId {
-  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-  if (demoMode) return "mock";
-
-  const raw = (process.env.AI_PROVIDER ?? "").trim().toLowerCase();
-  return raw === "local" ? "local" : "mock";
+  return readAiProviderFromEnv();
 }
 
 export async function generateQbrBrief(context: QbrSafeContextV1, params?: { variant?: number | null }) {
