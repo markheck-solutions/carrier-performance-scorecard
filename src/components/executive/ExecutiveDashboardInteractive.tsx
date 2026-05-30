@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { SCORE_MANIFEST } from "@/lib/scoring/manifest";
 import type { CarrierScorecard, ScoreComponentResult, ScoreFilters, ScoreScope, ScoringComponentId } from "@/lib/scoring/types";
@@ -541,7 +541,7 @@ function EvidencePanel(props: {
                     <article key={item.id} className="rounded-2xl border border-white/10 bg-black/30 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-sm font-semibold text-white">
-                          {item.id}{" "}
+                          <span className="tabular-nums">{item.id}</span>{" "}
                           <span className="text-white/50">
                             {item.carrierName} • {item.period}
                           </span>
@@ -550,8 +550,15 @@ function EvidencePanel(props: {
                           {item.region.toUpperCase()} • {item.productType} • {item.stage}
                         </div>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-white/70">{item.summary}</p>
+                      <div className="mt-2">
+                        <div className="text-[11px] font-semibold tracking-wide text-white/60">Summary</div>
+                        <p className="mt-1 text-sm leading-6 text-white/70">{item.summary}</p>
+                      </div>
                       <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/60 sm:grid-cols-4">
+                        <div>
+                          <div className="font-semibold text-white/75">Evidence ID</div>
+                          <div className="tabular-nums">{item.id}</div>
+                        </div>
                         <div>
                           <div className="font-semibold text-white/75">Carrier</div>
                           <div>{item.carrierName}</div>
@@ -569,7 +576,7 @@ function EvidencePanel(props: {
                           <div>{formatEnumLabel(item.productType)}</div>
                         </div>
                         <div>
-                          <div className="font-semibold text-white/75">Stage</div>
+                          <div className="font-semibold text-white/75">Status / stage</div>
                           <div>{formatEnumLabel(item.stage)}</div>
                         </div>
                         <div>
@@ -580,16 +587,8 @@ function EvidencePanel(props: {
                           <div className="font-semibold text-white/75">Delay</div>
                           <div className="tabular-nums">{item.delayDays}d</div>
                         </div>
-                        <div>
-                          <div className="font-semibold text-white/75">Responsiveness</div>
-                          <div className="tabular-nums">{item.responsivenessHours}h</div>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-white/75">Escalations</div>
-                          <div className="tabular-nums">{item.escalationCount}</div>
-                        </div>
                         <div className="sm:col-span-2">
-                          <div className="font-semibold text-white/75">Timing</div>
+                          <div className="font-semibold text-white/75">Timing context</div>
                           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
                             <span>
                               Committed <span className="font-semibold text-white/80 tabular-nums">{item.committedDate.slice(0, 10)}</span>
@@ -605,6 +604,19 @@ function EvidencePanel(props: {
                               <span className="font-semibold text-white/80 tabular-nums">
                                 {item.completedDate ? item.completedDate.slice(0, 10) : "—"}
                               </span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <div className="font-semibold text-white/75">Responsiveness / escalation context</div>
+                          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                            <span>
+                              Response{" "}
+                              <span className="font-semibold text-white/80 tabular-nums">{item.responsivenessHours}h</span>
+                            </span>
+                            <span>
+                              Escalations{" "}
+                              <span className="font-semibold text-white/80 tabular-nums">{item.escalationCount}</span>
                             </span>
                           </div>
                         </div>
@@ -632,8 +644,8 @@ function EvidencePanel(props: {
 }
 
 export function ExecutiveDashboardInteractive(props: { initialSummary: ScorecardsSummaryModel; runtime: RuntimePosture }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const nextSearchParams = useSearchParams();
+  const [searchString, setSearchString] = useState(() => nextSearchParams.toString());
 
   const [isPending, startTransition] = useTransition();
 
@@ -679,13 +691,22 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     return optionsState.data.periods.map((p) => p.seedKey);
   }, [optionsState]);
 
+  // URL is the source of truth. Keep a local string copy so back/forward and rapid sequential
+  // updates are deterministic without relying on router timing.
+  useEffect(() => {
+    const sync = () => setSearchString(new URLSearchParams(window.location.search).toString());
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+
   const parsed = useMemo(() => {
-    const cloned = new URLSearchParams(searchParams.toString());
+    const cloned = new URLSearchParams(searchString);
     return parseDashboardStateFromSearchParams(cloned, {
       allowedCarrierIds: allowedCarrierIds ?? undefined,
       allowedPeriods: allowedPeriods ?? undefined,
     });
-  }, [searchParams, allowedCarrierIds, allowedPeriods]);
+  }, [searchString, allowedCarrierIds, allowedPeriods]);
 
   const state = parsed.state;
   const issues = parsed.issues;
@@ -701,7 +722,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   );
 
   // Keep an eager copy so rapid sequential updates (filter changes, selection changes) don't
-  // accidentally drop earlier patches before the router updates searchParams.
+  // accidentally drop earlier patches before the URL state is applied.
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -742,10 +763,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       stateRef.current = nextState;
       const query = buildDashboardQueryString(nextState);
       const href = query.length > 0 ? `/${query}` : "/";
-      if (opts?.mode === "replace") router.replace(href, { scroll: false });
-      else router.push(href, { scroll: false });
+      if (opts?.mode === "replace") window.history.replaceState({}, "", href);
+      else window.history.pushState({}, "", href);
+      setSearchString(new URLSearchParams(window.location.search).toString());
     },
-    [router]
+    []
   );
 
   const clearSelection = useCallback(() => {
@@ -767,19 +789,6 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       { mode: "replace" }
     );
   }, [updateUrl]);
-
-  // Canonical carrier selection: when a carrier filter is applied, keep selectedCarrierId aligned so detail is populated.
-  // This avoids ambiguous "filtered to one carrier but nothing selected" states in user testing.
-  useEffect(() => {
-    if (!state.filters.carrierId) return;
-    if (state.selectedCarrierId === state.filters.carrierId) return;
-    updateUrl({
-      selectedCarrierId: state.filters.carrierId,
-      evidenceId: null,
-      evidenceDimension: null,
-      evidenceDelayReason: null,
-    }, { mode: "replace" });
-  }, [state.filters.carrierId, state.selectedCarrierId, updateUrl]);
 
   // Load filter options once (carriers + periods). These are used to sanitize deep links.
   useEffect(() => {
@@ -824,8 +833,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     if (issues.length === 0) return;
 
     const sanitizedQuery = buildDashboardQueryString(state);
-    const currentQuery = searchParams.toString();
-    const current = currentQuery.length > 0 ? `?${currentQuery}` : "";
+    const current = searchString.length > 0 ? `?${searchString}` : "";
     if (sanitizedQuery !== current) {
       const note = issueNote(issues);
       if (!transientBanner && note && issueKey.length > 0 && lastAutoRecoveryKey.current !== issueKey) {
@@ -834,9 +842,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
         setTransientBanner(note);
       }
       const href = sanitizedQuery.length > 0 ? `/${sanitizedQuery}` : "/";
-      router.replace(href, { scroll: false });
+      window.history.replaceState({}, "", href);
+      const sync = () => setSearchString(new URLSearchParams(window.location.search).toString());
+      sync();
     }
-  }, [issues, issueKey, router, searchParams, state, transientBanner]);
+  }, [issues, issueKey, searchString, state, transientBanner]);
 
   // Fetch summary whenever filters change.
   const summaryRequestSeq = useRef(0);
@@ -1149,6 +1159,9 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 }}
               >
                 <option value="">All carriers</option>
+                {state.filters.carrierId && !(optionsState.status === "ready" && optionsState.data.ok) ? (
+                  <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
+                ) : null}
                 {optionsState.status === "ready" && optionsState.data.ok
                   ? optionsState.data.carriers.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -1193,6 +1206,9 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 onChange={(next) => updateUrl({ filters: { period: next.length > 0 ? next : null } })}
               >
                 <option value="">All periods</option>
+                {state.filters.period && !(optionsState.status === "ready" && optionsState.data.ok) ? (
+                  <option value={state.filters.period}>Selected period ({state.filters.period})</option>
+                ) : null}
                 {optionsState.status === "ready" && optionsState.data.ok
                   ? optionsState.data.periods.map((p) => (
                       <option key={p.seedKey} value={p.seedKey}>

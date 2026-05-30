@@ -147,15 +147,16 @@ test("evidence opens from governance attention items and supports required evide
     const hasItems = (await drawer.locator("article").count()) > 0;
     if (hasItems) {
       // Required safe evidence-record context fields should be visible.
+      await expect(drawer.getByText(/^Evidence ID$/)).toBeVisible();
+      await expect(drawer.getByText(/^Summary$/)).toBeVisible();
       await expect(drawer.getByText(/^Carrier$/)).toBeVisible();
       await expect(drawer.getByText(/^Period$/)).toBeVisible();
       await expect(drawer.getByText(/^Region$/)).toBeVisible();
       await expect(drawer.getByText(/^Product$/)).toBeVisible();
-      await expect(drawer.getByText(/^Stage$/)).toBeVisible();
+      await expect(drawer.getByText(/^Status \/ stage$/)).toBeVisible();
       await expect(drawer.getByText(/^Delay reason$/)).toBeVisible();
-      await expect(drawer.getByText(/^Timing$/)).toBeVisible();
-      await expect(drawer.getByText(/^Responsiveness$/)).toBeVisible();
-      await expect(drawer.getByText(/^Escalations$/)).toBeVisible();
+      await expect(drawer.getByText(/^Timing context$/)).toBeVisible();
+      await expect(drawer.getByText(/^Responsiveness \/ escalation context$/)).toBeVisible();
       return;
     }
 
@@ -168,22 +169,48 @@ test("evidence opens from governance attention items and supports required evide
 });
 
 test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)", async ({ page }) => {
+  // Delay filter options so deep-link UI must still show canonical values before options resolve.
+  await page.route("**/api/scorecards/options", async (route) => {
+    await new Promise((r) => setTimeout(r, 2_000));
+    await route.continue();
+  });
+
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
   await page.getByLabel("Region").selectOption("emea");
   await page.getByLabel("Product type").selectOption("fiber");
 
-  // Pick a carrier that has a scorecard under this scope to ensure score-component proof entry points exist.
-  const summaryRes = await page.request.get("/api/scorecards/summary?region=emea&productType=fiber");
-  expect(summaryRes.ok()).toBeTruthy();
-  const summary = (await summaryRes.json()) as { ok: boolean; carriers?: Array<{ carrier: { id: string } }> };
-  expect(summary.ok).toBeTruthy();
-  const carrierId = summary.carriers?.[0]?.carrier.id;
-  expect(carrierId).toBeTruthy();
+  // Pick a period + carrier that has data in this scope so score-component proof entry points exist.
+  const optionsRes = await page.request.get("/api/scorecards/options");
+  expect(optionsRes.ok()).toBeTruthy();
+  const options = (await optionsRes.json()) as { ok: boolean; periods?: Array<{ seedKey: string }> };
+  expect(options.ok).toBeTruthy();
+  const periods = options.periods?.map((p) => p.seedKey) ?? [];
+  expect(periods.length).toBeGreaterThan(0);
 
-  await page.goto(`/?region=emea&productType=fiber&selectedCarrierId=${carrierId}`);
+  let picked: { period: string; carrierId: string } | null = null;
+  for (const period of periods) {
+    const summaryRes = await page.request.get(`/api/scorecards/summary?region=emea&productType=fiber&period=${period}`);
+    if (!summaryRes.ok()) continue;
+    const summary = (await summaryRes.json()) as { ok: boolean; carriers?: Array<{ carrier: { id: string } }> };
+    if (!summary.ok) continue;
+    const carrierId = summary.carriers?.[0]?.carrier.id;
+    if (carrierId) {
+      picked = { period, carrierId };
+      break;
+    }
+  }
+  expect(picked).toBeTruthy();
+
+  // Include a period filter to ensure combobox + chips + detail/evidence stay coherent.
+  await page.goto(`/?region=emea&productType=fiber&period=${picked!.period}&selectedCarrierId=${picked!.carrierId}`);
   await expect(page).toHaveURL(/selectedCarrierId=/);
+  await expect(page).toHaveURL(new RegExp(`period=${picked!.period}`));
+
+  // Even while options are delayed, the period control should reflect the URL value (not blank or reset).
+  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
+  await expect(page.getByRole("button", { name: /^Period:/ })).toBeVisible();
 
   const componentProof = page.locator('[data-evidence-origin^="dimension:"]').first();
   await expect(componentProof).toBeVisible({ timeout: 10_000 });
@@ -195,7 +222,20 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await page.reload();
 
   await expect(page).toHaveURL(deepLink);
+  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
   await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
+
+  // Back/forward should restore the same canonical state without diverging controls.
+  await page.goBack();
+  await expect(page).not.toHaveURL(/evidenceDimension=/);
+  await expect(page).toHaveURL(new RegExp(`period=${picked!.period}`));
+  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
+  await expect(page.getByRole("button", { name: /^Clear$/ })).toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL(deepLink);
+  await expect(page.getByLabel("Period")).toHaveValue(picked!.period);
   await expect(page.getByRole("button", { name: /^Close$/ })).toBeVisible();
 });
 
@@ -374,17 +414,20 @@ test("failing filter options request shows retryable state", async ({ page }) =>
 });
 
 test("failing summary request shows retryable comparison error", async ({ page }) => {
+  // Fail exactly one scoped summary request so the retry button can deterministically recover.
+  let failedScopedOnce = false;
   await page.goto("/");
   await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
 
-  // Fail the next summary fetch triggered by filter change.
-  let failNext = true;
+  // Fail the first summary fetch triggered by the EMEA filter change.
   await page.route("**/api/scorecards/summary**", async (route) => {
-    if (!failNext) {
+    const url = new URL(route.request().url());
+    const isScoped = url.searchParams.get("region") === "emea";
+    if (!isScoped || failedScopedOnce) {
       await route.continue();
       return;
     }
-    failNext = false;
+    failedScopedOnce = true;
     await route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -393,10 +436,11 @@ test("failing summary request shows retryable comparison error", async ({ page }
   });
 
   await page.getByLabel("Region").selectOption("emea");
-  await expect(page.getByText(/unable to load scorecards for this scope/i).first()).toBeVisible();
+  const err = page.getByText(/unable to load scorecards for this scope/i).first();
+  await expect(err).toBeVisible();
 
   // Retry should re-fetch and restore the comparison list.
-  await page.getByRole("button", { name: /^Retry$/ }).first().click();
+  await err.locator("..").getByRole("button", { name: /^Retry$/ }).click();
   await expect(page.getByRole("button", { name: /rank/i }).first()).toBeVisible({ timeout: 10_000 });
 });
 
@@ -457,6 +501,26 @@ test("zero-result scope shows explicit empty states across executive panels (VAL
 test("selecting a comparison card populates matching carrier detail (VAL-CARRIER-008, VAL-CARRIER-009)", async ({ page }) => {
   await page.goto("/");
 
+  // Baseline (unfiltered) selection should set selectedCarrierId and render matching detail.
+  const baselineCard = page.getByRole("button", { name: /rank/i }).first();
+  await baselineCard.click();
+  await expect(page).toHaveURL(/selectedCarrierId=/);
+  const baselineCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
+  if (!baselineCarrierId) throw new Error("Expected selectedCarrierId after selecting a baseline comparison card.");
+
+  const baselineRes = await page.request.get(`/api/carriers/${baselineCarrierId}/scorecard`);
+  expect(baselineRes.ok()).toBeTruthy();
+  const baselinePayload = (await baselineRes.json()) as { ok: boolean; carrier: { name: string; shortCode: string } | null };
+  expect(baselinePayload.ok).toBeTruthy();
+  expect(baselinePayload.carrier).toBeTruthy();
+
+  const detail = page.getByRole("heading", { name: /selected carrier detail/i }).locator("..").locator("..").locator("..");
+  await expect(detail.getByText(baselinePayload.carrier!.name, { exact: false })).toBeVisible({ timeout: 10_000 });
+
+  // Clear baseline selection before moving to filtered scope.
+  await page.getByRole("button", { name: /^Clear$/ }).click();
+  await expect(page).not.toHaveURL(/selectedCarrierId=/);
+
   await page.getByLabel("Region").selectOption("emea");
   await expect(page).toHaveURL(/region=emea/, { timeout: 10_000 });
   await page.getByLabel("Product type").selectOption("fiber");
@@ -477,7 +541,6 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
   expect(payload.carrier).toBeTruthy();
 
   // Detail should render identity for the same carrier we selected.
-  const detail = page.getByRole("heading", { name: /selected carrier detail/i }).locator("..").locator("..").locator("..");
   await expect(detail.getByText(payload.carrier!.name, { exact: false })).toBeVisible({ timeout: 10_000 });
   await expect(detail.getByText(/tier/i)).toBeVisible();
   await expect(detail.getByText(/region focus/i)).toBeVisible();
