@@ -7,6 +7,24 @@ import { readEvidence } from "@/lib/scoring/read-models";
 
 export const runtime = "nodejs";
 
+class InvalidEvidenceIdsError extends Error {
+  readonly code = "INVALID_EVIDENCE_IDS" as const;
+  readonly status = 400 as const;
+  constructor() {
+    super("Malformed evidenceIds parameter.");
+    this.name = "InvalidEvidenceIdsError";
+  }
+}
+
+function isInvalidEvidenceIdsError(error: unknown): error is InvalidEvidenceIdsError {
+  return error instanceof InvalidEvidenceIdsError;
+}
+
+function isUuid(value: string) {
+  // Strict RFC4122 UUID with version and variant bits, case-insensitive.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function parseEvidenceIds(url: URL) {
   const raw = url.searchParams.get("evidenceIds");
   if (!raw) return null;
@@ -19,6 +37,7 @@ function parseEvidenceIds(url: URL) {
   const seen = new Set<string>();
   const deduped: string[] = [];
   for (const id of ids) {
+    if (!isUuid(id)) throw new InvalidEvidenceIdsError();
     if (seen.has(id)) continue;
     seen.add(id);
     deduped.push(id);
@@ -51,6 +70,12 @@ export async function GET(request: NextRequest) {
     if (isInvalidFilterError(error)) {
       return NextResponse.json(
         { ok: false, error: { code: error.code, message: error.message, details: error.details } },
+        { status: error.status }
+      );
+    }
+    if (isInvalidEvidenceIdsError(error)) {
+      return NextResponse.json(
+        { ok: false, error: { code: error.code, message: error.message } },
         { status: error.status }
       );
     }
