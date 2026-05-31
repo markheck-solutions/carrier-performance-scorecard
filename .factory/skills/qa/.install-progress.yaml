@@ -1,0 +1,49 @@
+project: carrier-performance-scorecard
+status: generated
+repo:
+  path: C:\SoftwareFactory\01-projects\carrier-performance-scorecard
+  github: https://github.com/markheck-solutions/carrier-performance-scorecard
+  default_branch: master
+app_structure:
+  monorepo: false
+  app_type: nextjs-app-router
+  package_manager: npm
+  dev_url: http://127.0.0.1:3100
+  production_url: https://carrier-performance-scorecard.vercel.app
+decisions:
+  wiki_workflow: true
+  qa_workflow: true
+  default_target: local
+  preview_deployments: none_detected
+  pr_branch_testing: local_dev_server
+  production_smoke: true
+  tests_read_only: true
+  auth_method: none
+  auth_provider: none
+  cleanup_strategy: none
+  failure_learning: suggest_in_report
+  imagemagick: true
+personas:
+  - executive-reviewer
+  - qbr-analyst
+  - it-security-reviewer
+  - keyboard-user
+  - malicious-deeplink-user
+ci:
+  required_secrets:
+    - FACTORY_API_KEY
+    - DATABASE_URL
+  env:
+    NEXT_PUBLIC_DEMO_MODE: "true"
+    AI_PROVIDER: mock
+    CI: "true"
+  commands:
+    dev: npm run dev
+    build: npm run build
+    test_unit: npm run test -- --run
+    browser: npm run test:browser
+    seed: npm run db:seed
+    lint: npm run lint
+    typecheck: npm run typecheck
+    safety: npm run safety
+    readme_verify: npm run readme:verify

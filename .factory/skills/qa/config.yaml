@@ -1,0 +1,153 @@
+project: carrier-performance-scorecard
+imagemagick: true
+
+environments:
+  local:
+    url: http://127.0.0.1:3100
+    strategy: local_dev_server
+    start_command: npm run dev
+    health_check: /api/health
+    restrictions:
+      - read_only
+      - branch_code_target_for_pull_requests
+  production:
+    url: https://carrier-performance-scorecard.vercel.app
+    strategy: production_smoke
+    health_check: /api/health
+    restrictions:
+      - read_only
+      - smoke_only_unless_explicitly_requested
+
+default_target: local
+
+auth:
+  method: none
+  provider: none
+
+personas:
+  - name: executive-reviewer
+    description: Portfolio reviewer validating executive clarity, summary KPIs, carrier comparison, and boardroom readiness.
+    credentials_source: none
+    test_focus:
+      - first_visit
+      - portfolio_kpis
+      - carrier_comparison
+      - executive_narrative
+    cannot_do:
+      - mutate_demo_data
+      - access_secret_values
+  - name: qbr-analyst
+    description: Analyst preparing QBR talking points from selected carrier detail, evidence, and mock AI brief output.
+    credentials_source: none
+    test_focus:
+      - filters
+      - carrier_detail
+      - evidence_drawer
+      - qbr_brief
+    cannot_do:
+      - use_unconfigured_ai_provider
+      - submit_mutation_requests
+  - name: it-security-reviewer
+    description: Technical reviewer validating read-only API posture, demo safety, controlled errors, and no secret leakage.
+    credentials_source: none
+    test_focus:
+      - health_endpoint
+      - unsupported_methods
+      - invalid_inputs
+      - no_secret_leaks
+    cannot_do:
+      - retrieve_environment_secrets
+      - mutate_records
+  - name: keyboard-user
+    description: Keyboard-only reviewer validating focus movement, visible controls, reset behavior, and actionable UI states.
+    credentials_source: none
+    test_focus:
+      - keyboard_navigation
+      - focus_recovery
+      - drawer_close
+      - reset_controls
+    cannot_do:
+      - get_trapped_in_overlay
+      - lose_focus_after_recovery
+  - name: malicious-deeplink-user
+    description: Negative-test persona using invalid query parameters, unknown carrier IDs, invalid evidence IDs, and malformed requests.
+    credentials_source: none
+    test_focus:
+      - invalid_deep_links
+      - invalid_api_ids
+      - unsupported_filters
+      - controlled_error_responses
+    cannot_do:
+      - crash_the_app
+      - expose_internal_details
+
+apps:
+  web:
+    path_patterns:
+      - src/app/page.tsx
+      - src/app/layout.tsx
+      - src/app/loading.tsx
+      - src/app/error.tsx
+      - src/app/globals.css
+      - src/components/executive/**
+      - src/lib/filters/**
+      - src/lib/scoring/**
+      - public/**
+      - tests/browser/**
+    skill: qa-web
+    test_tool: agent-browser
+    dev_command: npm run dev
+    build_command: npm run build
+  api:
+    path_patterns:
+      - src/app/api/**
+      - src/lib/db/**
+      - src/lib/env/**
+      - src/lib/qbr/**
+      - src/lib/safety/**
+      - src/lib/seed/**
+      - src/lib/scoring/**
+      - scripts/**
+      - tests/unit/api/**
+      - tests/unit/qbr/**
+      - tests/unit/safety/**
+      - tests/unit/demo-data/**
+    skill: qa-api
+    test_tool: curl
+    dev_command: npm run dev
+    build_command: npm run build
+
+feature_flags:
+  provider: environment
+  flags:
+    NEXT_PUBLIC_DEMO_MODE:
+      default: "true"
+      description: Keeps the app in public safe demo posture.
+    AI_PROVIDER:
+      default: mock
+      description: Uses deterministic mock QBR generation by default.
+  how_to_override: Set environment variables before starting the local dev server.
+
+integrations:
+  database:
+    provider: Supabase/Postgres
+    secret_name: DATABASE_URL
+    usage: Server-side Drizzle read models and seed metadata.
+  hosting:
+    provider: Vercel
+    production_url: https://carrier-performance-scorecard.vercel.app
+    preview_deployments: none_detected
+  qbr_ai:
+    provider: QBR mock/local AI
+    default_provider: mock
+    optional_local_env:
+      - OPENAI_COMPATIBLE_BASE_URL
+      - OPENAI_COMPATIBLE_API_KEY
+      - OPENAI_COMPATIBLE_MODEL
+
+cleanup:
+  auto_cleanup: false
+  strategy: none
+  instructions: Tests are read-only and must not create records, accounts, or persistent artifacts in the app.
+
+failure_learning: suggest_in_report

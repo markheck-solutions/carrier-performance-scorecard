@@ -1,0 +1,110 @@
+name: QA
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    name: Functional QA
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y -qq imagemagick
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Install Factory Droid
+        run: curl -fsSL https://app.factory.ai/cli | sh
+
+      - name: Run QA skill
+        id: qa
+        continue-on-error: true
+        timeout-minutes: 18
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_DEMO_MODE: "true"
+          AI_PROVIDER: mock
+          CI: "true"
+        run: |
+          mkdir -p qa-results
+          set -o pipefail
+          droid exec --auto high "You are running in a non-interactive CI environment. There is NO human available. Do NOT use AskUser, do NOT wait for confirmations, and do NOT pause for input. Run the qa skill for this repository. Use the default local target and test the checked-out PR branch by starting the local dev server at http://127.0.0.1:3100 through the generated QA skill. Do not fall back to the production URL for PR branch testing. Write the final report to qa-results/report.md." 2>&1 | tee qa-output.txt
+
+      - name: Upload QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-results
+          path: |
+            qa-results/
+            qa-output.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Post QA report as PR comment
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+
+          marker = "<!-- qa-report -->"
+          report_path = Path("qa-results/report.md")
+          output_path = Path("qa-output.txt")
+
+          if report_path.exists() and report_path.read_text(encoding="utf-8").strip():
+              report = report_path.read_text(encoding="utf-8")
+          else:
+              raw = output_path.read_text(encoding="utf-8", errors="replace") if output_path.exists() else "QA did not produce output."
+              report = "## QA Report\n\n<details>\n<summary>Raw QA output</summary>\n\n```text\n" + raw[-60000:] + "\n```\n\n</details>\n"
+
+          if not report.lstrip().startswith("## QA Report"):
+              report = "## QA Report\n\n" + report
+
+          run_url = os.environ["RUN_URL"]
+          body = f"{marker}\n{report.rstrip()}\n\n---\nArtifacts are available in the workflow run: {run_url}\n"
+          Path("qa-comment.md").write_text(body, encoding="utf-8")
+          PY
+
+          comment_id="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --jq '.[] | select(.body | startswith("<!-- qa-report -->")) | .id' | head -n 1)"
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/${REPO}/issues/comments/${comment_id}" -f body="$(cat qa-comment.md)"
+          else
+            gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="$(cat qa-comment.md)"
+          fi
+
+      - name: Fail if QA failed
+        if: steps.qa.outcome == 'failure'
+        run: exit 1
