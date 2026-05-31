@@ -290,7 +290,9 @@ test("invalid evidenceId deep link recovers with a reset banner (VAL-CARRIER-024
   const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
   if (!selectedCarrierId) throw new Error("Expected selectedCarrierId for invalid evidenceId deep link test.");
 
-  await page.goto(`/?selectedCarrierId=${selectedCarrierId}&evidenceId=00000000-0000-0000-0000-000000000000`);
+  // Use a syntactically valid UUID that will not exist in seeded demo data.
+  // This should be treated as a missing/filtered proof reference (not a malformed-id error).
+  await page.goto(`/?selectedCarrierId=${selectedCarrierId}&evidenceId=00000000-0000-4000-8000-000000000000`);
 
   await expect(page.getByText(/proof link is not available/i)).toBeVisible({ timeout: 10_000 });
   await expect(page).not.toHaveURL(/evidenceId=/);

@@ -20,7 +20,7 @@ function isBinary(content: string) {
   return content.includes("\u0000");
 }
 
-function allowlisted(kind: string, sample: string, file: string) {
+function allowlisted(kind: string, sample: string, file: string, contextLine: string) {
   const s = sample.toLowerCase();
   if (kind === "openai_key_like") {
     // Unit tests intentionally include clearly fake key strings to prove redaction and non-leakage.
@@ -30,11 +30,20 @@ function allowlisted(kind: string, sample: string, file: string) {
     // Allow obvious non-secret placeholders used in tests or config examples.
     if (s.includes("example.invalid") || s.includes("example.test") || s === "configured") return true;
   }
-  // Never allow key blocks or real token formats.
+  if (file === "package-lock.json") {
+    // Lockfile integrity metadata can contain random-looking base64 that trips token heuristics.
+    // Only allowlist matches that are on known non-secret fields.
+    const line = contextLine.toLowerCase();
+    const isIntegrityOrResolved = line.includes('"integrity"') || line.includes('"resolved"');
+    if (isIntegrityOrResolved && kind !== "private_key_block") return true;
+  }
+
+  // Never allow key blocks (or token formats) outside very narrow lockfile metadata allowlists.
   if (["private_key_block", "github_token", "aws_access_key"].includes(kind)) return false;
 
   // Default: no allowlist.
   void file;
+  void contextLine;
   return false;
 }
 
@@ -52,8 +61,6 @@ describe("secret scan (VAL-SAFE-011)", () => {
 
     const findings: Finding[] = [];
     for (const rel of tracked) {
-      // Skip vendored artifacts and lockfiles where regex heuristics are noisy.
-      if (rel === "package-lock.json") continue;
       const abs = path.join(repoRoot, rel);
       const content = readFileSync(abs, "utf8");
       if (isBinary(content)) continue;
@@ -62,7 +69,11 @@ describe("secret scan (VAL-SAFE-011)", () => {
         const match = content.match(rule.regex);
         if (!match) continue;
         const sample = match[0].slice(0, 120);
-        if (allowlisted(rule.kind, sample, rel)) continue;
+        const idx = match.index ?? -1;
+        const start = idx >= 0 ? Math.max(0, content.lastIndexOf("\n", idx) + 1) : 0;
+        const end = idx >= 0 ? content.indexOf("\n", idx) : -1;
+        const contextLine = idx >= 0 ? content.slice(start, end === -1 ? content.length : end) : "";
+        if (allowlisted(rule.kind, sample, rel, contextLine)) continue;
         findings.push({ file: rel, kind: rule.kind, sample });
         if (findings.length >= 10) break;
       }
