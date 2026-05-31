@@ -9,9 +9,14 @@ import { readDemoModeFlag } from "@/lib/env/server-env";
 export const runtime = "nodejs";
 
 function readCount(result: unknown): number {
-  const rows = (result as { rows?: Array<Record<string, unknown>> } | undefined)?.rows;
-  const first = Array.isArray(rows) ? rows[0] : null;
-  const raw = first ? first.c : null;
+  // drizzle execute() shape differs by driver:
+  // - postgres-js returns an array of row objects
+  // - some test drivers return { rows: [...] }
+  const rows: Array<Record<string, unknown>> = Array.isArray(result)
+    ? (result as Array<Record<string, unknown>>)
+    : ((result as { rows?: Array<Record<string, unknown>> } | null)?.rows ?? []);
+
+  const raw = rows[0]?.c;
   if (typeof raw === "number") return raw;
   if (typeof raw === "string") {
     const n = Number(raw);
