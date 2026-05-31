@@ -464,7 +464,7 @@ describe("scoring engine and read models", () => {
     expect(first).toEqual(["e-2", "e-4", "e-1"]);
   });
 
-  it("handles empty scopes safely without fabricating scores (VAL-SCORE-012)", async () => {
+  it("handles empty scopes safely without fabricating scores (VAL-SCORE-012, VAL-CROSS-008)", async () => {
     const { db } = createTestDb();
     await seed(db);
 
@@ -497,7 +497,7 @@ describe("scoring engine and read models", () => {
     }
   });
 
-  it("propagates low-volume confidence consistently through scorecards (VAL-SCORE-015)", async () => {
+  it("propagates low-volume confidence consistently through scorecards (VAL-SCORE-015, VAL-CROSS-008)", async () => {
     const { db } = createTestDb();
     await seed(db);
 

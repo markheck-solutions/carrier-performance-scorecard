@@ -23,8 +23,8 @@ function isClientModule(source: string) {
   return /["']use client["']/.test(head);
 }
 
-describe("server-only boundaries (VAL-SAFE-012)", () => {
-  it("prevents client modules from importing server-only modules or private env access", () => {
+describe("server-only boundaries", () => {
+  it("prevents client modules from importing server-only modules or private env access (VAL-SAFE-012, VAL-QBR-016, VAL-QBR-019)", () => {
     const root = process.cwd();
     const srcRoot = path.join(root, "src");
     const files: string[] = [];

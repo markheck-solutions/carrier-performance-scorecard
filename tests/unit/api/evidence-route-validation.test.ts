@@ -55,7 +55,7 @@ describe("/api/evidence evidenceIds validation (VAL-CROSS-007)", () => {
     process.env = { ...originalEnv };
   });
 
-  it("rejects malformed evidenceIds with a sanitized 400 JSON error", async () => {
+  it("rejects malformed evidenceIds with a sanitized 400 JSON error (VAL-CROSS-007, VAL-SAFE-006)", async () => {
     const { db } = createTestDb();
     await seed(db);
     installRouteDb(db);

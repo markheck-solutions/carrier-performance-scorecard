@@ -124,7 +124,7 @@ describe("/api/qbr/brief", () => {
     expect(after).toEqual(before);
   });
 
-  it("fails closed when local provider is selected but not configured (VAL-QBR-017)", async () => {
+  it("fails closed when local provider is selected but not configured (VAL-QBR-017, VAL-QBR-015, VAL-SAFE-016)", async () => {
     const { db } = createTestDb();
     const dataset = await seed(db);
     installRouteDb(db);
@@ -146,7 +146,8 @@ describe("/api/qbr/brief", () => {
     const payload = await res.json();
     expect(payload.ok).toBe(false);
     expect(payload.error.code).toBe("LOCAL_PROVIDER_NOT_CONFIGURED");
-    expect(JSON.stringify(payload)).not.toMatch(/OPENAI_COMPATIBLE|API_KEY|BASE_URL/i);
+    // Error responses must not leak configuration, internals, or paths.
+    expect(JSON.stringify(payload)).not.toMatch(/OPENAI_COMPATIBLE|API_KEY|BASE_URL|DATABASE_URL|postgres:\/\/|drizzle|stack|C:\\|C:\//i);
   });
 
   it("sanitizes malformed local-provider responses by falling back to mock (VAL-QBR-024)", async () => {

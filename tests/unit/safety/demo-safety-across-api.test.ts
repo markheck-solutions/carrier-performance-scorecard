@@ -29,8 +29,8 @@ function createTestDb() {
 async function seed(db: ReturnType<typeof createTestDb>["db"]) {
   await ensureDemoSchema(db);
   const dataset = buildDemoDataset();
-  await seedDemoData(db, dataset, { expectedDatasetId: DEMO_DATASET_ID, allowlistToken: DEMO_DATASET_ID });
-  return dataset;
+  const seeded = await seedDemoData(db, dataset, { expectedDatasetId: DEMO_DATASET_ID, allowlistToken: DEMO_DATASET_ID });
+  return { dataset, fingerprint: seeded.fingerprint };
 }
 
 function installRouteDb(db: ReturnType<typeof createTestDb>["db"]) {
@@ -40,7 +40,7 @@ function installRouteDb(db: ReturnType<typeof createTestDb>["db"]) {
   };
 }
 
-describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003)", () => {
+describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003, VAL-CROSS-006, VAL-QBR-026)", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -55,9 +55,9 @@ describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003)", 
     (globalThis as unknown as { __carrierPerfScorecardDb?: unknown }).__carrierPerfScorecardDb = undefined;
   });
 
-  it("scans representative API responses for forbidden demo-data patterns", async () => {
+  it("scans representative API responses for forbidden demo-data patterns and proves API surfaces are seeded-data-backed (VAL-CROSS-006, VAL-QBR-026)", async () => {
     const { db } = createTestDb();
-    const dataset = await seed(db);
+    const { dataset, fingerprint } = await seed(db);
     installRouteDb(db);
 
     const health = await (await getHealth()).json();
@@ -68,7 +68,9 @@ describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003)", 
       await getSummary(new NextRequest("http://example.test/api/scorecards/summary?region=emea&period=2026-05"))
     ).json();
 
-    const carrierId = dataset.carriers[0]!.id;
+    // Use an EMEA-focused carrier that is guaranteed to have seeded records in typical filter scopes.
+    const carrierId = dataset.carriers.find((c) => c.seedKey === "carrier:skybridge")?.id ?? dataset.carriers[0]!.id;
+    const carrierName = dataset.carriers.find((c) => c.id === carrierId)?.name ?? "";
     const carrierDetail = await (
       await getCarrierScorecard(
         new NextRequest(`http://example.test/api/carriers/${carrierId}/scorecard?region=emea&period=2026-05`),
@@ -89,6 +91,20 @@ describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003)", 
         })
       )
     ).json();
+
+    // Seeded-data proof: demo-data metadata and carrier/QBR facts must align with the seeded dataset.
+    expect(health.ok).toBe(true);
+    expect(demoData.ok).toBe(true);
+    expect(demoData.dataset?.id).toBe(dataset.datasetId);
+    expect(demoData.dataset?.fingerprint).toBe(fingerprint);
+    expect(demoData.counts?.carriers ?? 0).toBeGreaterThan(0);
+    expect(summary.ok).toBe(true);
+    expect(carrierDetail.ok).toBe(true);
+    expect(carrierDetail.carrier?.id).toBe(carrierId);
+    expect(qbr.ok).toBe(true);
+    expect(String(qbr.provider?.id ?? "")).toBe("mock");
+    expect(carrierName).toBeTruthy();
+    expect(JSON.stringify(qbr)).toContain(carrierName);
 
     const payloads = { health, demoData, options, summary, carrierDetail, evidence, qbr };
     const findings = scanUnknownForDemoSafety(payloads);
