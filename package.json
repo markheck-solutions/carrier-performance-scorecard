@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:browser": "playwright test",
     "db:seed": "tsx scripts/db-seed.ts",
+    "readme:verify": "tsx scripts/readme-verify.ts",
     "safety": "npm audit --audit-level=high"
   },
   "dependencies": {
