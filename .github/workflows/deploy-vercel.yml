@@ -1,0 +1,61 @@
+name: Deploy Vercel
+
+on:
+  workflow_dispatch:
+    inputs:
+      production:
+        description: Deploy to production instead of preview.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy when Vercel secrets exist
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Check Vercel secrets
+        id: check
+        shell: bash
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel deploy skipped because VERCEL_TOKEN, VERCEL_ORG_ID, or VERCEL_PROJECT_ID is not configured."
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Pull Vercel environment
+        if: steps.check.outputs.configured == 'true'
+        run: npx vercel@latest pull --yes --environment=${{ inputs.production && 'production' || 'preview' }} --token="$VERCEL_TOKEN"
+
+      - name: Build with Vercel
+        if: steps.check.outputs.configured == 'true'
+        run: npx vercel@latest build ${{ inputs.production && '--prod' || '' }} --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt output
+        if: steps.check.outputs.configured == 'true'
+        run: npx vercel@latest deploy --prebuilt ${{ inputs.production && '--prod' || '' }} --token="$VERCEL_TOKEN"

@@ -20,6 +20,7 @@ jobs:
     env:
       NEXT_PUBLIC_DEMO_MODE: "true"
       AI_PROVIDER: mock
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +48,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Quality checks
+        run: npm run quality:check
 
       - name: README verify
         run: npm run readme:verify

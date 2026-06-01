@@ -86,16 +86,30 @@ Open http://127.0.0.1:3100
 npm run lint
 npm run typecheck
 npm run test -- --run
+npm run test:coverage
 npm run build
+npm run quality:check
 npm run test:browser
 npm run db:seed
 ```
+
+Targeted readiness checks are included in `npm run quality:check`: naming, complexity, query pattern guards, bundle and dependency budgets, timed build and test runs, release automation checks, dependency age policy, README verification, and the safety audit.
 
 ## Public demo posture and safety notes
 
 - The deployed demo runs in demo mode with fictional data.
 - The QBR brief is clearly labeled as mock AI in demo mode.
 - API routes are read only. Unsupported mutation methods return controlled JSON errors.
+
+## Local services posture
+
+This repo does not require Docker Compose or a local Postgres service. Local data access is Supabase backed through `DATABASE_URL`, and `.env.local` must stay uncommitted. The optional `.devcontainer/` config only provides Node tooling and port forwarding.
+
+## Observability and automation
+
+- Privacy-safe server logging, trace context, metrics helpers, error insights, product analytics event building, retry, and circuit breaker helpers live under `src/lib`.
+- GitHub Actions include CI, CodeQL, release notes generation, release creation, CI failure issue filing, and an optional Vercel deploy workflow that skips when Vercel secrets are absent.
+- Playwright CI retries and report outputs help identify flaky browser tests without changing local test behavior.
 
 ## Deployment notes (Vercel)
 

@@ -1,0 +1,60 @@
+name: Release Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Tag to generate notes for. Defaults to package.json version.
+        required: false
+        type: string
+      previous_tag_name:
+        description: Optional previous tag for the comparison range.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate release notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate notes with GitHub
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const pkg = require("./package.json");
+            const requestedTag = core.getInput("tag_name").trim();
+            const previousTag = core.getInput("previous_tag_name").trim();
+            const tagName = requestedTag || `v${pkg.version}`;
+            const params = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+            };
+            if (previousTag) {
+              params.previous_tag_name = previousTag;
+            }
+
+            const response = await github.rest.repos.generateReleaseNotes(params);
+            const title = response.data.name || tagName;
+            const body = `# ${title}\n\n${response.data.body || "No release notes generated."}\n`;
+            fs.mkdirSync("release-artifacts", { recursive: true });
+            fs.writeFileSync("release-artifacts/release-notes.md", body, "utf8");
+            await core.summary.addHeading("Release Notes").addRaw(body).write();
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-artifacts/release-notes.md
+          if-no-files-found: error
+          retention-days: 30

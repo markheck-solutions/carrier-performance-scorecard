@@ -13,6 +13,9 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
     clearMocks: true,
+    retry: process.env.CI ? 1 : 0,
+    reporters: process.env.CI ? ["default", "junit"] : ["default"],
+    outputFile: process.env.CI ? { junit: "./test-results/vitest-junit.xml" } : undefined,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

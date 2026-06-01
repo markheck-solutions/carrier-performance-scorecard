@@ -26,6 +26,12 @@ This runbook covers basic operation for the Carrier Performance Intelligence Sco
 
 5. Open `http://127.0.0.1:3100`.
 
+## Local services
+
+This portfolio app does not require Docker Compose or a local Postgres container. Local database access is Supabase backed through `DATABASE_URL`, and the seeded dataset is fictional. Keep `NEXT_PUBLIC_DEMO_MODE=true` and `AI_PROVIDER=mock` for public demo review unless you are intentionally testing the backend only local provider.
+
+An optional devcontainer is available under `.devcontainer/`. It installs Node tooling and forwards port `3100`, but it does not provision local services or copy secrets.
+
 ## Local verification
 
 Run these checks before opening or merging a change:
@@ -59,9 +65,14 @@ Use `npm run format` to apply Prettier formatting.
 
 ## GitHub Actions
 
-The repository has three workflow surfaces:
+The repository has multiple workflow surfaces:
 
 - `CI` runs npm install, lint, typecheck, tests, coverage, build, README verification, and audit checks.
+- `CodeQL` runs automated JavaScript and TypeScript security analysis.
+- `Release Notes` generates GitHub release notes with the repository token.
+- `Release` validates the repo and can create or update a GitHub release after a dry run.
+- `CI Failure Issue` opens or updates one issue per failing CI branch so failures have an owner visible from GitHub.
+- `Deploy Vercel` is manual and skips safely unless the Vercel GitHub secrets already exist.
 - `QA` runs the Factory QA skill for pull requests when the required Factory secret is configured.
 - `Droid Wiki Refresh` refreshes generated wiki content on pushes to `master`.
 
