@@ -26,6 +26,8 @@ jobs:
         run: npm ci
 
       - name: Generate wiki
+        id: generate-wiki
+        continue-on-error: true
         run: |
           set -o pipefail
           droid exec --cwd "$GITHUB_WORKSPACE" --auto high "/wiki" 2>&1 | tee droid-wiki-output.log
@@ -34,6 +36,11 @@ jobs:
           NEXT_PUBLIC_DEMO_MODE: "true"
           AI_PROVIDER: mock
           NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Report wiki refresh failure
+        if: steps.generate-wiki.outcome == 'failure'
+        run: |
+          echo "::warning::Factory Wiki refresh failed. Check the droid-wiki-output artifact and verify FACTORY_API_KEY health."
 
       - name: Upload wiki diagnostics
         if: always()

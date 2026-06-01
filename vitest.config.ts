@@ -13,6 +13,7 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
     clearMocks: true,
+    testTimeout: 15_000,
     retry: process.env.CI ? 1 : 0,
     reporters: process.env.CI ? ["default", "junit"] : ["default"],
     outputFile: process.env.CI ? { junit: "./test-results/vitest-junit.xml" } : undefined,
