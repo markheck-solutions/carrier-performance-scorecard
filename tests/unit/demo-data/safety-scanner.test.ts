@@ -29,7 +29,7 @@ describe("demo-data safety scanner", () => {
       const findings = scanTextForDemoSafety(n.text);
       expect(
         findings.some((f) => f.kind === n.kind),
-        `Expected finding kind ${n.kind} for "${n.text}"`
+        `Expected finding kind ${n.kind} for "${n.text}"`,
       ).toBe(true);
     }
   });

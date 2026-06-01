@@ -13,5 +13,26 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
     clearMocks: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "./coverage",
+      all: true,
+      include: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      exclude: [
+        "src/app/layout.tsx",
+        "src/app/loading.tsx",
+        "src/app/error.tsx",
+        "src/**/*.d.ts",
+        "scripts/db-seed.ts",
+        "scripts/quality/**/*.ts",
+      ],
+      thresholds: {
+        lines: 25,
+        functions: 25,
+        branches: 20,
+        statements: 25,
+      },
+    },
   },
 });

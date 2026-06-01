@@ -275,7 +275,11 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
   };
 }
 
-export async function readCarrierDetail(db: DemoDb, carrierId: string, filters: ScoreFilters): Promise<CarrierDetailReadModel> {
+export async function readCarrierDetail(
+  db: DemoDb,
+  carrierId: string,
+  filters: ScoreFilters,
+): Promise<CarrierDetailReadModel> {
   const f = normalizeFilters(filters);
   const carrierScoped = normalizeFilters({ ...filters, carrierId });
 
@@ -341,7 +345,7 @@ export async function readEvidence(
     delayReason?: string | null;
     evidenceIds?: string[] | null;
     cap?: number | null;
-  }
+  },
 ): Promise<EvidenceReadModel> {
   const f = normalizeFilters(filters);
   assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
@@ -350,7 +354,8 @@ export async function readEvidence(
   const delayReason = filters.delayReason ?? null;
   const rawIds = filters.evidenceIds ?? null;
   const ids = rawIds && rawIds.length > 0 ? Array.from(new Set(rawIds)) : null;
-  const cap = typeof filters.cap === "number" && Number.isFinite(filters.cap) && filters.cap > 0 ? Math.floor(filters.cap) : null;
+  const cap =
+    typeof filters.cap === "number" && Number.isFinite(filters.cap) && filters.cap > 0 ? Math.floor(filters.cap) : null;
 
   const periods = await db.select().from(schema.periods);
   const periodMatch = f.period ? periods.find((p) => p.seedKey === f.period) : null;
@@ -441,7 +446,8 @@ export async function readEvidence(
     if (dim === "repeat_issue_concentration") {
       // Prefer repeats first, then stable issue signature grouping.
       if (Boolean(a.isRepeat) !== Boolean(b.isRepeat)) return a.isRepeat ? -1 : 1;
-      if (a.issueSignature !== b.issueSignature) return String(a.issueSignature).localeCompare(String(b.issueSignature));
+      if (a.issueSignature !== b.issueSignature)
+        return String(a.issueSignature).localeCompare(String(b.issueSignature));
       return a.id.localeCompare(b.id);
     }
     if (dim === "completion_trend") {
@@ -470,24 +476,23 @@ export async function readEvidence(
       cap,
       missingEvidenceIds,
     },
-    items: visible
-      .map((r) => ({
-        id: r.id,
-        dimension: r.dimension,
-        summary: r.summary,
-        carrierId: r.carrierId,
-        carrierName: r.carrierName,
-        period: r.period,
-        region: r.region as Region,
-        productType: r.productType as ProductType,
-        delayReason: r.delayReason,
-        committedDate: r.committedDate,
-        forecastDate: r.forecastDate ?? null,
-        completedDate: r.completedDate ?? null,
-        stage: r.stage,
-        responsivenessHours: r.responsivenessHours,
-        escalationCount: r.escalationCount,
-        delayDays: r.delayDays,
-      })),
+    items: visible.map((r) => ({
+      id: r.id,
+      dimension: r.dimension,
+      summary: r.summary,
+      carrierId: r.carrierId,
+      carrierName: r.carrierName,
+      period: r.period,
+      region: r.region as Region,
+      productType: r.productType as ProductType,
+      delayReason: r.delayReason,
+      committedDate: r.committedDate,
+      forecastDate: r.forecastDate ?? null,
+      completedDate: r.completedDate ?? null,
+      stage: r.stage,
+      responsivenessHours: r.responsivenessHours,
+      escalationCount: r.escalationCount,
+      delayDays: r.delayDays,
+    })),
   };
 }

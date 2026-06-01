@@ -5,11 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
 
-import {
-  DEMO_DATASET_ID,
-  REGION_VALUES,
-  type Region,
-} from "../../../src/lib/db/demo-values";
+import { DEMO_DATASET_ID, REGION_VALUES, type Region } from "../../../src/lib/db/demo-values";
 import { ensureDemoSchema } from "../../../src/lib/db/ensure-schema";
 import { schema } from "../../../src/lib/db/schema";
 import { buildDemoDataset } from "../../../src/lib/seed/demo-dataset";
@@ -69,7 +65,7 @@ describe("demo schema and seed", () => {
         issueSignature: "none:na:fiber",
         isRepeat: false,
         customerImpact: "low",
-      })
+      }),
     ).rejects.toBeTruthy();
 
     // Enum-like checks.
@@ -95,7 +91,7 @@ describe("demo schema and seed", () => {
         issueSignature: "none:na:fiber",
         isRepeat: false,
         customerImpact: "low",
-      })
+      }),
     ).rejects.toBeTruthy();
 
     // Nonnegative numeric checks.
@@ -120,7 +116,7 @@ describe("demo schema and seed", () => {
         issueSignature: "none:na:fiber",
         isRepeat: false,
         customerImpact: "low",
-      })
+      }),
     ).rejects.toBeTruthy();
 
     // Date-order check.
@@ -131,19 +127,19 @@ describe("demo schema and seed", () => {
         label: "2026 Aug",
         startDate: "2026-08-10",
         endDate: "2026-08-01",
-      })
+      }),
     ).rejects.toBeTruthy();
   });
 
   it("guards seed targets and avoids leaking connection strings (VAL-SAFE-014)", async () => {
     const { db } = createTestDb();
 
-    await expect(
-      assertSeedTargetAllowed(db, { expectedDatasetId: DEMO_DATASET_ID })
-    ).rejects.toThrow(SEED_ALLOWLIST_ENV_VAR);
+    await expect(assertSeedTargetAllowed(db, { expectedDatasetId: DEMO_DATASET_ID })).rejects.toThrow(
+      SEED_ALLOWLIST_ENV_VAR,
+    );
 
     await expect(
-      assertSeedTargetAllowed(db, { expectedDatasetId: DEMO_DATASET_ID, allowlistToken: DEMO_DATASET_ID })
+      assertSeedTargetAllowed(db, { expectedDatasetId: DEMO_DATASET_ID, allowlistToken: DEMO_DATASET_ID }),
     ).resolves.toEqual(expect.objectContaining({ allowed: true }));
   });
 
@@ -170,23 +166,29 @@ describe("demo schema and seed", () => {
     expect(counts1.evidence).toBeGreaterThanOrEqual(4);
     expect(counts1.seedMeta).toBe(1);
 
-    const meta = (await db.execute(
-      sql`select dataset_id, fingerprint from seed_meta where dataset_id = ${DEMO_DATASET_ID} limit 1`
-    )).rows?.[0];
+    const meta = (
+      await db.execute(sql`select dataset_id, fingerprint from seed_meta where dataset_id = ${DEMO_DATASET_ID} limit 1`)
+    ).rows?.[0];
 
     expect(meta?.dataset_id).toBe(DEMO_DATASET_ID);
     expect(meta?.fingerprint).toBe(first.fingerprint);
 
     // No orphaned references.
-    const orphanDeliveryCarrier = (await db.execute(
-      sql`select count(*)::int as c from delivery_records dr left join carriers c on c.id = dr.carrier_id where c.id is null`
-    )).rows?.[0]?.c;
-    const orphanDeliveryPeriod = (await db.execute(
-      sql`select count(*)::int as c from delivery_records dr left join periods p on p.id = dr.period_id where p.id is null`
-    )).rows?.[0]?.c;
-    const orphanEvidence = (await db.execute(
-      sql`select count(*)::int as c from evidence_items e left join delivery_records dr on dr.id = e.delivery_record_id where dr.id is null`
-    )).rows?.[0]?.c;
+    const orphanDeliveryCarrier = (
+      await db.execute(
+        sql`select count(*)::int as c from delivery_records dr left join carriers c on c.id = dr.carrier_id where c.id is null`,
+      )
+    ).rows?.[0]?.c;
+    const orphanDeliveryPeriod = (
+      await db.execute(
+        sql`select count(*)::int as c from delivery_records dr left join periods p on p.id = dr.period_id where p.id is null`,
+      )
+    ).rows?.[0]?.c;
+    const orphanEvidence = (
+      await db.execute(
+        sql`select count(*)::int as c from evidence_items e left join delivery_records dr on dr.id = e.delivery_record_id where dr.id is null`,
+      )
+    ).rows?.[0]?.c;
 
     expect(orphanDeliveryCarrier).toBe(0);
     expect(orphanDeliveryPeriod).toBe(0);
@@ -230,18 +232,14 @@ describe("demo schema and seed", () => {
     await ensureDemoSchema(db);
 
     type TableRow = { table_name: string };
-    const tableRows = (await db.execute(
-      sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`
-    )).rows as TableRow[] | undefined;
+    const tableRows = (
+      await db.execute(
+        sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
+      )
+    ).rows as TableRow[] | undefined;
     const tables = tableRows?.map((r) => r.table_name);
 
-    expect(tables).toEqual([
-      "carriers",
-      "delivery_records",
-      "evidence_items",
-      "periods",
-      "seed_meta",
-    ]);
+    expect(tables).toEqual(["carriers", "delivery_records", "evidence_items", "periods", "seed_meta"]);
   });
 
   it("seed data covers required variation, filters, low-volume, and empty scopes (VAL-SAFE-009)", async () => {
@@ -253,24 +251,27 @@ describe("demo schema and seed", () => {
       allowlistToken: DEMO_DATASET_ID,
     });
 
-    const onTime = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where delay_days = 0 and delay_reason = 'none' and stage = 'completed'`
-    )).rows?.[0]?.c;
-    const delayed = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where delay_days > 0 and delay_reason <> 'none'`
-    )).rows?.[0]?.c;
-    const escalated = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where escalation_count > 0`
-    )).rows?.[0]?.c;
-    const slowResponse = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where responsiveness_hours >= 48`
-    )).rows?.[0]?.c;
-    const openAging = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where stage in ('open','in_progress')`
-    )).rows?.[0]?.c;
-    const repeats = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where is_repeat = true`
-    )).rows?.[0]?.c;
+    const onTime = (
+      await db.execute(
+        sql`select count(*)::int as c from delivery_records where delay_days = 0 and delay_reason = 'none' and stage = 'completed'`,
+      )
+    ).rows?.[0]?.c;
+    const delayed = (
+      await db.execute(
+        sql`select count(*)::int as c from delivery_records where delay_days > 0 and delay_reason <> 'none'`,
+      )
+    ).rows?.[0]?.c;
+    const escalated = (
+      await db.execute(sql`select count(*)::int as c from delivery_records where escalation_count > 0`)
+    ).rows?.[0]?.c;
+    const slowResponse = (
+      await db.execute(sql`select count(*)::int as c from delivery_records where responsiveness_hours >= 48`)
+    ).rows?.[0]?.c;
+    const openAging = (
+      await db.execute(sql`select count(*)::int as c from delivery_records where stage in ('open','in_progress')`)
+    ).rows?.[0]?.c;
+    const repeats = (await db.execute(sql`select count(*)::int as c from delivery_records where is_repeat = true`))
+      .rows?.[0]?.c;
 
     expect(onTime).toBeGreaterThan(0);
     expect(delayed).toBeGreaterThan(0);
@@ -282,12 +283,12 @@ describe("demo schema and seed", () => {
     // Region/product filters should both have hits for at least two regions and two products.
     type RegionRow = { region: string };
     type ProductRow = { product_type: string };
-    const regionRows = (await db.execute(
-      sql`select distinct region from delivery_records order by region`
-    )).rows as RegionRow[] | undefined;
-    const productRows = (await db.execute(
-      sql`select distinct product_type from delivery_records order by product_type`
-    )).rows as ProductRow[] | undefined;
+    const regionRows = (await db.execute(sql`select distinct region from delivery_records order by region`)).rows as
+      | RegionRow[]
+      | undefined;
+    const productRows = (
+      await db.execute(sql`select distinct product_type from delivery_records order by product_type`)
+    ).rows as ProductRow[] | undefined;
     const regions = regionRows?.map((r) => r.region);
     const products = productRows?.map((r) => r.product_type);
 
@@ -295,15 +296,16 @@ describe("demo schema and seed", () => {
     expect(products?.length).toBeGreaterThanOrEqual(2);
 
     // Low-volume carrier exists (<= 2 records).
-    const lowVolume = (await db.execute(
-      sql`select count(*)::int as c from (select carrier_id, count(*) as n from delivery_records group by carrier_id having count(*) <= 2) t`
-    )).rows?.[0]?.c;
+    const lowVolume = (
+      await db.execute(
+        sql`select count(*)::int as c from (select carrier_id, count(*) as n from delivery_records group by carrier_id having count(*) <= 2) t`,
+      )
+    ).rows?.[0]?.c;
     expect(lowVolume).toBeGreaterThan(0);
 
     // Empty state: at least one allowed region value should have zero records.
-    const emptyRegion = (await db.execute(
-      sql`select count(*)::int as c from delivery_records where region = 'latam'`
-    )).rows?.[0]?.c;
+    const emptyRegion = (await db.execute(sql`select count(*)::int as c from delivery_records where region = 'latam'`))
+      .rows?.[0]?.c;
     expect(REGION_VALUES.includes("latam")).toBe(true);
     expect(emptyRegion).toBe(0);
   });

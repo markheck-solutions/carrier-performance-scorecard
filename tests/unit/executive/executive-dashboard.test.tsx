@@ -22,7 +22,8 @@ function component(params: {
   return {
     id: params.id,
     label: params.id.replaceAll("_", " "),
-    direction: params.id === "commitment_adherence" || params.id === "completion_trend" ? "higher_is_better" : "lower_is_better",
+    direction:
+      params.id === "commitment_adherence" || params.id === "completion_trend" ? "higher_is_better" : "lower_is_better",
     weight: 10,
     metric: params.metric,
     sampleCount: 8,
@@ -40,7 +41,13 @@ function component(params: {
   };
 }
 
-function fakeScorecard(params: { id: string; name: string; shortCode: string; grade: ScoreGrade; totalScore: number }): CarrierScorecard {
+function fakeScorecard(params: {
+  id: string;
+  name: string;
+  shortCode: string;
+  grade: ScoreGrade;
+  totalScore: number;
+}): CarrierScorecard {
   const components: ScoreComponentResult[] = [
     component({
       id: "commitment_adherence",
@@ -87,11 +94,20 @@ function fakeScorecard(params: { id: string; name: string; shortCode: string; gr
   ];
 
   return {
-    carrier: { id: params.id, name: params.name, shortCode: params.shortCode, relationshipTier: "core", regionFocus: "na" },
+    carrier: {
+      id: params.id,
+      name: params.name,
+      shortCode: params.shortCode,
+      relationshipTier: "core",
+      regionFocus: "na",
+    },
     scope: components[0]!.scope,
     mix: {
       regions: [{ region: "na", count: 8, share: 1 }],
-      productTypes: [{ productType: "fiber", count: 6, share: 0.75 }, { productType: "wireless", count: 2, share: 0.25 }],
+      productTypes: [
+        { productType: "fiber", count: 6, share: 0.75 },
+        { productType: "wireless", count: 2, share: 0.25 },
+      ],
       topRegion: "na",
       topProductType: "fiber",
     },
@@ -150,9 +166,7 @@ describe("Executive dashboard", () => {
 
   it("renders a safe, retryable error state with no internal leakage (VAL-EXEC-011)", async () => {
     const { default: ErrorPage } = await import("@/app/error");
-    render(
-      <ErrorPage error={new Error("SQL: select * from carriers where ...")} unstable_retry={() => {}} />
-    );
+    render(<ErrorPage error={new Error("SQL: select * from carriers where ...")} unstable_retry={() => {}} />);
 
     expect(screen.getByRole("heading", { name: /something went wrong/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /try again/i })).toBeVisible();
@@ -172,7 +186,7 @@ describe("Executive dashboard", () => {
           status: "error",
           message: "Runtime status is temporarily unavailable. The scorecard is still usable.",
         }}
-      />
+      />,
     );
 
     // Summary-driven surfaces should still render.

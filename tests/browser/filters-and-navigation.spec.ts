@@ -123,7 +123,9 @@ test("evidence opens from executive insights (delay reasons) without workflow co
   await expect(drawer.getByRole("button", { name: /assign|comment|approve|save|owner/i })).toHaveCount(0);
 });
 
-test("evidence opens from governance attention items and supports required evidence context when items exist (VAL-CARRIER-014, VAL-CARRIER-015)", async ({ page }) => {
+test("evidence opens from governance attention items and supports required evidence context when items exist (VAL-CARRIER-014, VAL-CARRIER-015)", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
@@ -171,7 +173,9 @@ test("evidence opens from governance attention items and supports required evide
     await expect(drawer).not.toBeVisible();
   }
 
-  throw new Error("No governance proof items yielded evidence records; expected at least one to validate evidence context fields.");
+  throw new Error(
+    "No governance proof items yielded evidence records; expected at least one to validate evidence context fields.",
+  );
 });
 
 test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)", async ({ page }) => {
@@ -246,7 +250,9 @@ test("refresh restores filters, selection, and evidence state (VAL-CARRIER-019)"
   await expect(page.getByTestId("evidence-drawer-ready")).toHaveCount(1);
 });
 
-test("conflicting evidence deep-link params sanitize safely with visible recovery (VAL-CARRIER-024)", async ({ page }) => {
+test("conflicting evidence deep-link params sanitize safely with visible recovery (VAL-CARRIER-024)", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
@@ -321,14 +327,19 @@ test("rapid filter changes do not show stale comparison state", async ({ page })
   await expect(page).toHaveURL(/region=na/);
 
   // The rendered scope summary (from the API response) should reflect NA, not a stale EMEA response.
-  await expect(page.getByRole("region", { name: /scope filters/i }).getByText(/Region NA/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("region", { name: /scope filters/i }).getByText(/Region NA/i)).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test("low-volume carriers show limited confidence copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
-  const limited = page.getByTestId("comparison-card").filter({ hasText: /limited sample/i }).first();
+  const limited = page
+    .getByTestId("comparison-card")
+    .filter({ hasText: /limited sample/i })
+    .first();
   await expect(limited).toBeVisible();
   await limited.click();
 
@@ -416,10 +427,15 @@ test("failing filter options request shows retryable state", async ({ page }) =>
   await page.goto("/");
 
   await expect(page.getByText(/unable to load filter options/i)).toBeVisible();
-  await page.getByRole("button", { name: /^Retry$/ }).first().click();
+  await page
+    .getByRole("button", { name: /^Retry$/ })
+    .first()
+    .click();
 
   // Once the retry succeeds, we should see real carrier options appear.
-  await expect(page.getByLabel("Carrier", { exact: true }).locator("option", { hasText: /Aurora TransitLink/i })).toHaveCount(1);
+  await expect(
+    page.getByLabel("Carrier", { exact: true }).locator("option", { hasText: /Aurora TransitLink/i }),
+  ).toHaveCount(1);
 });
 
 test("failing summary request shows retryable comparison error", async ({ page }) => {
@@ -449,7 +465,10 @@ test("failing summary request shows retryable comparison error", async ({ page }
   await expect(err).toBeVisible();
 
   // Retry should re-fetch and restore the comparison list.
-  await err.locator("..").getByRole("button", { name: /^Retry$/ }).click();
+  await err
+    .locator("..")
+    .getByRole("button", { name: /^Retry$/ })
+    .click();
   await expect(page.getByTestId("comparison-card").first()).toBeVisible({ timeout: 10_000 });
 });
 
@@ -480,7 +499,9 @@ test("zero-result scope shows explicit empty states across executive panels (VAL
         }
       }
       for (const period of periods) {
-        const res = await page.request.get(`/api/scorecards/summary?region=${region}&productType=${productType}&period=${period}`);
+        const res = await page.request.get(
+          `/api/scorecards/summary?region=${region}&productType=${productType}&period=${period}`,
+        );
         if (!res.ok()) continue;
         const payload = (await res.json()) as { ok: boolean; counts?: { deliveryRecords: number } };
         if (payload.ok && (payload.counts?.deliveryRecords ?? 0) === 0) {
@@ -507,7 +528,9 @@ test("zero-result scope shows explicit empty states across executive panels (VAL
   await expect(page.getByText(/delay concentration is unavailable/i)).toBeVisible();
 });
 
-test("selecting a comparison card populates matching carrier detail (VAL-CARRIER-008, VAL-CARRIER-009)", async ({ page }) => {
+test("selecting a comparison card populates matching carrier detail (VAL-CARRIER-008, VAL-CARRIER-009)", async ({
+  page,
+}) => {
   await page.goto("/");
 
   // Baseline (unfiltered) selection should set selectedCarrierId and render matching detail.
@@ -519,11 +542,18 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
 
   const baselineRes = await page.request.get(`/api/carriers/${baselineCarrierId}/scorecard`);
   expect(baselineRes.ok()).toBeTruthy();
-  const baselinePayload = (await baselineRes.json()) as { ok: boolean; carrier: { name: string; shortCode: string } | null };
+  const baselinePayload = (await baselineRes.json()) as {
+    ok: boolean;
+    carrier: { name: string; shortCode: string } | null;
+  };
   expect(baselinePayload.ok).toBeTruthy();
   expect(baselinePayload.carrier).toBeTruthy();
 
-  const detail = page.getByRole("heading", { name: /selected carrier detail/i }).locator("..").locator("..").locator("..");
+  const detail = page
+    .getByRole("heading", { name: /selected carrier detail/i })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   await expect(detail.getByText(baselinePayload.carrier!.name, { exact: false })).toBeVisible({ timeout: 10_000 });
 
   // Clear baseline selection before moving to filtered scope.
@@ -560,7 +590,9 @@ test("selecting a comparison card populates matching carrier detail (VAL-CARRIER
   await expect(detail.getByText(new RegExp(`\\(${payload.carrier!.shortCode}\\)`))).toBeVisible();
 });
 
-test("switching carriers clears stale detail and leaves exactly one selected card (VAL-CARRIER-012, VAL-CARRIER-027)", async ({ page }) => {
+test("switching carriers clears stale detail and leaves exactly one selected card (VAL-CARRIER-012, VAL-CARRIER-027)", async ({
+  page,
+}) => {
   await page.goto("/");
 
   const cards = page.getByTestId("comparison-card");
@@ -575,7 +607,11 @@ test("switching carriers clears stale detail and leaves exactly one selected car
   const payloadA = (await resA.json()) as { ok: boolean; carrier: { name: string } | null };
   expect(payloadA.ok).toBeTruthy();
   expect(payloadA.carrier).toBeTruthy();
-  const detailPanel = page.getByRole("heading", { name: /selected carrier detail/i }).locator("..").locator("..").locator("..");
+  const detailPanel = page
+    .getByRole("heading", { name: /selected carrier detail/i })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   await expect(detailPanel.getByText(payloadA.carrier!.name, { exact: false })).toBeVisible({ timeout: 10_000 });
 
   // Select carrier B.
@@ -599,7 +635,9 @@ test("switching carriers clears stale detail and leaves exactly one selected car
   await expect(page.locator('[data-selected="true"]')).toHaveCount(1);
 });
 
-test("existing carrier with zero records shows no-record guidance; unknown carrier shows not-found recovery (VAL-CARRIER-030)", async ({ page }) => {
+test("existing carrier with zero records shows no-record guidance; unknown carrier shows not-found recovery (VAL-CARRIER-030)", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
 
@@ -636,9 +674,15 @@ test("existing carrier with zero records shows no-record guidance; unknown carri
       }
     }
     for (const productType of products) {
-      const productRes = await page.request.get(`/api/carriers/${existingCarrierId}/scorecard?region=${region}&productType=${productType}`);
+      const productRes = await page.request.get(
+        `/api/carriers/${existingCarrierId}/scorecard?region=${region}&productType=${productType}`,
+      );
       if (productRes.ok()) {
-        const productPayload = (await productRes.json()) as { ok: boolean; scorecard: unknown | null; carrier: unknown | null };
+        const productPayload = (await productRes.json()) as {
+          ok: boolean;
+          scorecard: unknown | null;
+          carrier: unknown | null;
+        };
         if (productPayload.ok && productPayload.carrier && !productPayload.scorecard) {
           picked = { region, productType, period: null };
           break;
@@ -646,7 +690,7 @@ test("existing carrier with zero records shows no-record guidance; unknown carri
       }
       for (const period of periods) {
         const res = await page.request.get(
-          `/api/carriers/${existingCarrierId}/scorecard?region=${region}&productType=${productType}&period=${period}`
+          `/api/carriers/${existingCarrierId}/scorecard?region=${region}&productType=${productType}&period=${period}`,
         );
         if (!res.ok()) continue;
         const payload = (await res.json()) as { ok: boolean; scorecard: unknown | null; carrier: unknown | null };

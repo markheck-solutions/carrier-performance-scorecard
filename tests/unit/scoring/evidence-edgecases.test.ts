@@ -150,7 +150,9 @@ describe("evidence proof surface edge cases (VAL-CARRIER-028)", () => {
     const skybridge = dataset.carriers.find((c) => c.seedKey === "carrier:skybridge");
     expect(skybridge).toBeTruthy();
 
-    const target = dataset.deliveryRecords.find((d) => d.carrierId === skybridge!.id && d.region === "emea" && d.delayDays > 0);
+    const target = dataset.deliveryRecords.find(
+      (d) => d.carrierId === skybridge!.id && d.region === "emea" && d.delayDays > 0,
+    );
     expect(target).toBeTruthy();
 
     const evidenceId = "44444444-4444-4444-8444-444444444444";
@@ -201,7 +203,12 @@ describe("evidence honors filters and resolves cited IDs (VAL-CARRIER-016)", () 
     const dataset = await seed(db);
 
     const carrier = dataset.carriers.find((c) => c.seedKey === "carrier:skybridge") ?? dataset.carriers[0]!;
-    const detail = await readCarrierDetail(db, carrier.id, { carrierId: null, region: null, productType: null, period: null });
+    const detail = await readCarrierDetail(db, carrier.id, {
+      carrierId: null,
+      region: null,
+      productType: null,
+      period: null,
+    });
     expect(detail.ok).toBe(true);
     expect(detail.scorecard).toBeTruthy();
 

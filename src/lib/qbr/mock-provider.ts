@@ -103,7 +103,9 @@ export function generateMockQbrBrief(context: QbrSafeContextV1, params?: { varia
   const onTime = commitment ? asRatio(commitment.metric) : { numerator: 0, denominator: 0 };
   const onTimePct = pct(onTime.numerator, onTime.denominator);
   const avgDelayDays = delay ? Math.round(asScalar(delay.metric, 0)) : 0;
-  const repeatRate = repeat ? pct(asRatio(repeat.metric).numerator, Math.max(1, asRatio(repeat.metric).denominator)) : 0;
+  const repeatRate = repeat
+    ? pct(asRatio(repeat.metric).numerator, Math.max(1, asRatio(repeat.metric).denominator))
+    : 0;
   const avgRespHours = resp ? Math.round(asScalar(resp.metric, 0)) : 0;
   const escalationPerRecord = esc ? Math.round(asScalar(esc.metric, 0) * 10) / 10 : 0;
   const agingRate = aging ? pct(asRatio(aging.metric).numerator, Math.max(1, asRatio(aging.metric).denominator)) : 0;
@@ -116,7 +118,10 @@ export function generateMockQbrBrief(context: QbrSafeContextV1, params?: { varia
   const lowVolume = context.records.lowVolume;
 
   const dataNotice = limitedData
-    ? { kind: "limited_data" as const, message: `No delivery records are available for ${carrierTag} in this scope (${scopeLabel}).` }
+    ? {
+        kind: "limited_data" as const,
+        message: `No delivery records are available for ${carrierTag} in this scope (${scopeLabel}).`,
+      }
     : lowVolume
       ? {
           kind: "limited_data" as const,
@@ -196,11 +201,7 @@ export function generateMockQbrBrief(context: QbrSafeContextV1, params?: { varia
 
   // Ensure every material driver can influence at least one visible bullet, while still allowing
   // a small deterministic variation in phrasing.
-  const concerns = sanitizeBullets([
-    concernsTemplates[0],
-    concernsTemplates[1],
-    pick(rng, concernsTemplates.slice(2)),
-  ]);
+  const concerns = sanitizeBullets([concernsTemplates[0], concernsTemplates[1], pick(rng, concernsTemplates.slice(2))]);
 
   const questions = sanitizeBullets([
     questionsTemplates[0],

@@ -1,5 +1,11 @@
 import { SCORE_GRADE_THRESHOLDS } from "@/lib/scoring/manifest";
-import type { CarrierScorecard, ScoreComponentResult, ScoreGrade, ScoreScope, ScoringComponentId } from "@/lib/scoring/types";
+import type {
+  CarrierScorecard,
+  ScoreComponentResult,
+  ScoreGrade,
+  ScoreScope,
+  ScoringComponentId,
+} from "@/lib/scoring/types";
 
 export type TrendLabel = "improving" | "declining" | "stable" | "watch" | "unknown";
 

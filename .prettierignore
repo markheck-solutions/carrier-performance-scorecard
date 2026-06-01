@@ -1,0 +1,13 @@
+.factory
+.git
+.next
+.vercel
+coverage
+node_modules
+playwright-report
+test-results
+
+.env*
+next-env.d.ts
+package-lock.json
+tsconfig.tsbuildinfo

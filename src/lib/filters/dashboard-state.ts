@@ -35,7 +35,7 @@ export function parseDashboardStateFromSearchParams(
   opts?: {
     allowedPeriods?: readonly string[];
     allowedCarrierIds?: readonly string[];
-  }
+  },
 ): { state: DashboardState; issues: DashboardSanitizeIssue[] } {
   const issues: DashboardSanitizeIssue[] = [];
 
@@ -80,7 +80,9 @@ export function parseDashboardStateFromSearchParams(
 
   const allowedEvidenceDimensions = Object.keys(SCORE_MANIFEST.components) as ScoringComponentId[];
   const evidenceDimension =
-    evidenceDimensionRaw && (!/^[a-z_]+$/.test(evidenceDimensionRaw) || !allowedEvidenceDimensions.includes(evidenceDimensionRaw as ScoringComponentId))
+    evidenceDimensionRaw &&
+    (!/^[a-z_]+$/.test(evidenceDimensionRaw) ||
+      !allowedEvidenceDimensions.includes(evidenceDimensionRaw as ScoringComponentId))
       ? (issues.push({ kind: "invalid_evidenceDimension", value: evidenceDimensionRaw }), null)
       : (evidenceDimensionRaw as ScoringComponentId | null);
 

@@ -24,10 +24,7 @@ export function normalizeLinear(params: {
   const denom = best - worst;
   if (!Number.isFinite(denom) || denom === 0) return 0;
 
-  const raw =
-    params.direction === "higher_is_better"
-      ? (capped - worst) / denom
-      : (worst - capped) / (worst - best);
+  const raw = params.direction === "higher_is_better" ? (capped - worst) / denom : (worst - capped) / (worst - best);
 
   const clamped = clamp(raw, 0, 1);
   return clamped * 100;

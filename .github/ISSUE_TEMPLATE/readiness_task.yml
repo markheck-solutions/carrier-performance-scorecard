@@ -1,0 +1,43 @@
+name: Readiness task
+description: Track a repository readiness improvement.
+title: "Readiness: "
+labels:
+  - readiness
+body:
+  - type: textarea
+    id: gap
+    attributes:
+      label: Readiness gap
+      description: What basic readiness item is missing or weak?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true for this to be complete?
+      placeholder: |
+        - Check exists in code or configuration
+        - Local validation command passes
+        - No secrets are printed or committed
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: List the commands or review steps to prove the task is done.
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Area
+      options:
+        - CI
+        - Security
+        - Testing
+        - Documentation
+        - Code quality
+        - Deployment
+        - Other
+    validations:
+      required: true

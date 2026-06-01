@@ -17,9 +17,7 @@ import {
 import { HealthSpectrum } from "./HealthSpectrum";
 import type { HealthModel, ScorecardsSummaryModel } from "./types";
 
-export type RuntimePosture =
-  | { status: "ready"; data: HealthModel }
-  | { status: "error"; message: string };
+export type RuntimePosture = { status: "ready"; data: HealthModel } | { status: "error"; message: string };
 
 function gradeTone(grade: ScoreGrade) {
   switch (grade) {
@@ -167,7 +165,8 @@ export function ExecutiveDashboard(props: {
                 <div className="text-xs font-semibold tracking-wide text-white/80">Demo disclosure</div>
                 <div className="mt-2 space-y-1 text-sm leading-6 text-white/70">
                   <div>
-                    Fictional dataset: <span className="font-semibold text-white/85">{DEMO_DATASET_ID}</span> ({DEMO_SEED_VERSION})
+                    Fictional dataset: <span className="font-semibold text-white/85">{DEMO_DATASET_ID}</span> (
+                    {DEMO_SEED_VERSION})
                   </div>
                   <div>Mock AI only. No production carrier or customer data.</div>
                   <div>No create, edit, delete, upload, or workflow actions.</div>
@@ -195,7 +194,9 @@ export function ExecutiveDashboard(props: {
                     )}
                   </div>
 
-                  <h2 className="text-lg font-semibold tracking-tight text-white">What leadership can decide in 60 seconds</h2>
+                  <h2 className="text-lg font-semibold tracking-tight text-white">
+                    What leadership can decide in 60 seconds
+                  </h2>
                   <ul className="mt-4 space-y-3 text-sm leading-6 text-white/75">
                     <li className="flex gap-3">
                       <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-300/70" aria-hidden="true" />
@@ -238,17 +239,15 @@ export function ExecutiveDashboard(props: {
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_1px_0_rgba(255,255,255,0.06)]">
                     <div className="text-sm font-semibold text-white">No carriers in this scope</div>
                     <div className="mt-2 text-sm leading-6 text-white/70">
-                      These filters remove all delivery records, so there is nothing to grade or rank. Broaden scope or use Reset in
-                      Scope controls.
+                      These filters remove all delivery records, so there is nothing to grade or rank. Broaden scope or
+                      use Reset in Scope controls.
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {props.commandSurface ? (
-              <div className="pt-2">{props.commandSurface}</div>
-            ) : null}
+            {props.commandSurface ? <div className="pt-2">{props.commandSurface}</div> : null}
           </header>
 
           <section aria-label="Leadership KPIs">
@@ -282,8 +281,8 @@ export function ExecutiveDashboard(props: {
               </div>
             ) : (
               <div className="rounded-2xl border border-white/10 bg-black/35 p-5 text-sm text-white/70">
-                No KPIs are available because this scope contains zero delivery records. Broaden filters or use Reset to restore the
-                executive view.
+                No KPIs are available because this scope contains zero delivery records. Broaden filters or use Reset to
+                restore the executive view.
               </div>
             )}
           </section>
@@ -299,7 +298,9 @@ export function ExecutiveDashboard(props: {
                 subtitle="Strongest fictional carrier in this scope, with the most consistent signal mix."
                 right={
                   hasResults && best ? (
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(best.grade).className}`}>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(best.grade).className}`}
+                    >
                       {best.grade} {gradeTone(best.grade).label}
                     </span>
                   ) : (
@@ -328,7 +329,8 @@ export function ExecutiveDashboard(props: {
                       </div>
                     )}
                     <div className="mt-2 text-sm leading-6 text-white/70">
-                      Recommended posture: keep cadence, reinforce what is working, and use this carrier as a reference in QBR.
+                      Recommended posture: keep cadence, reinforce what is working, and use this carrier as a reference
+                      in QBR.
                     </div>
                     <div className="mt-4">
                       <div className="text-xs font-semibold tracking-wide text-white/60">Top strengths</div>
@@ -351,7 +353,9 @@ export function ExecutiveDashboard(props: {
                 subtitle="Lowest-scoring fictional carrier in this scope. Use this to prioritize leadership discussion."
                 right={
                   hasResults && worst ? (
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(worst.grade).className}`}>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(worst.grade).className}`}
+                    >
                       {worst.grade} {gradeTone(worst.grade).label}
                     </span>
                   ) : (
@@ -380,7 +384,8 @@ export function ExecutiveDashboard(props: {
                       </div>
                     )}
                     <div className="mt-2 text-sm leading-6 text-white/70">
-                      Recommended posture: align on recovery plan, tighten cadence, and confirm owner actions for the next period.
+                      Recommended posture: align on recovery plan, tighten cadence, and confirm owner actions for the
+                      next period.
                     </div>
                     <div className="mt-4">
                       <div className="text-xs font-semibold tracking-wide text-white/60">Primary pressure points</div>
@@ -391,7 +396,8 @@ export function ExecutiveDashboard(props: {
                   </div>
                 ) : (
                   <div className="text-sm leading-6 text-white/70">
-                    No carriers are ranked in this scope. Broaden filters or use Reset to restore the executive signal panels.
+                    No carriers are ranked in this scope. Broaden filters or use Reset to restore the executive signal
+                    panels.
                   </div>
                 )}
               </Panel>
@@ -431,22 +437,27 @@ export function ExecutiveDashboard(props: {
                               </span>
                             ) : null}
                           </div>
-                          <div className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(item.grade).className}`}>
+                          <div
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeTone(item.grade).className}`}
+                          >
                             Grade {item.grade} ({item.totalScore})
                           </div>
                         </div>
                         <div className="mt-2 text-sm leading-6 text-white/70">{item.reason}</div>
-                        <div className="mt-3 text-xs font-semibold tracking-wide text-white/60">Next discussion angle</div>
+                        <div className="mt-3 text-xs font-semibold tracking-wide text-white/60">
+                          Next discussion angle
+                        </div>
                         <div className="mt-1 text-sm leading-6 text-white/70">{item.discussionAngle}</div>
                         {props.onOpenEvidenceForGovernanceItem && item.concerns[0] ? (
                           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/35 px-3 py-2">
                             <div className="text-xs text-white/70">
-                              Proof focus:{" "}
-                              <span className="font-semibold text-white/85">{item.concerns[0].label}</span>
+                              Proof focus: <span className="font-semibold text-white/85">{item.concerns[0].label}</span>
                             </div>
                             <button
                               type="button"
-                              onClick={() => props.onOpenEvidenceForGovernanceItem?.(item.carrierId, item.concerns[0]!.id)}
+                              onClick={() =>
+                                props.onOpenEvidenceForGovernanceItem?.(item.carrierId, item.concerns[0]!.id)
+                              }
                               data-evidence-origin={`governance:${item.carrierId}:${item.concerns[0]!.id}`}
                               className="inline-flex items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/15 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                             >
@@ -459,7 +470,8 @@ export function ExecutiveDashboard(props: {
                   </ol>
                 ) : (
                   <div className="text-sm leading-6 text-white/70">
-                    No governance signals are available because this scope contains zero delivery records. Broaden filters or use Reset.
+                    No governance signals are available because this scope contains zero delivery records. Broaden
+                    filters or use Reset.
                   </div>
                 )}
               </Panel>
@@ -493,20 +505,23 @@ export function ExecutiveDashboard(props: {
                         <div className="text-[11px] font-semibold tracking-wide text-white/60">Window</div>
                         <div className="mt-1 text-sm font-semibold text-white/85">
                           {derived.model.scope.periodWindow.mode === "single"
-                            ? derived.model.scope.periodWindow.seedKey ?? "period"
+                            ? (derived.model.scope.periodWindow.seedKey ?? "period")
                             : `${shortDate(derived.model.scope.periodWindow.startDate)} to ${shortDate(derived.model.scope.periodWindow.endDate)}`}
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div className="text-sm leading-6 text-white/70">
-                      Trend is unavailable because this scope contains zero delivery records. Broaden filters or use Reset to restore
-                      momentum signals.
+                      Trend is unavailable because this scope contains zero delivery records. Broaden filters or use
+                      Reset to restore momentum signals.
                     </div>
                   )}
                 </Panel>
 
-                <Panel title="Delay concentration" subtitle="Top delay reasons plus region and product concentration signals.">
+                <Panel
+                  title="Delay concentration"
+                  subtitle="Top delay reasons plus region and product concentration signals."
+                >
                   {hasResults ? (
                     <div className="space-y-4">
                       <div>
@@ -516,7 +531,10 @@ export function ExecutiveDashboard(props: {
                             .filter((d) => d.delayReason !== "none")
                             .slice(0, 4)
                             .map((d) => {
-                              const pct = derived.model.counts.deliveryRecords > 0 ? d.count / derived.model.counts.deliveryRecords : 0;
+                              const pct =
+                                derived.model.counts.deliveryRecords > 0
+                                  ? d.count / derived.model.counts.deliveryRecords
+                                  : 0;
                               return (
                                 <div key={d.delayReason} className="flex items-center gap-3">
                                   <div className="flex w-28 items-center gap-2">
@@ -534,7 +552,10 @@ export function ExecutiveDashboard(props: {
                                   </div>
                                   <div className="flex-1">
                                     <div className="h-2 rounded-full bg-white/10">
-                                      <div className="h-2 rounded-full bg-white/40" style={{ width: `${Math.min(100, pct * 120)}%` }} />
+                                      <div
+                                        className="h-2 rounded-full bg-white/40"
+                                        style={{ width: `${Math.min(100, pct * 120)}%` }}
+                                      />
                                     </div>
                                   </div>
                                   <div className="w-12 text-right text-xs font-semibold tabular-nums text-white/70">
@@ -548,7 +569,9 @@ export function ExecutiveDashboard(props: {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                          <div className="text-[11px] font-semibold tracking-wide text-white/60">Region concentration</div>
+                          <div className="text-[11px] font-semibold tracking-wide text-white/60">
+                            Region concentration
+                          </div>
                           <div className="mt-1 text-sm font-semibold text-white/85">
                             {derived.model.aggregates.regions[0]
                               ? `${derived.model.aggregates.regions[0].region.toUpperCase()} (${derived.model.aggregates.regions[0].count})`
@@ -556,7 +579,9 @@ export function ExecutiveDashboard(props: {
                           </div>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                          <div className="text-[11px] font-semibold tracking-wide text-white/60">Product concentration</div>
+                          <div className="text-[11px] font-semibold tracking-wide text-white/60">
+                            Product concentration
+                          </div>
                           <div className="mt-1 text-sm font-semibold text-white/85">
                             {derived.model.aggregates.productTypes[0]
                               ? `${derived.model.aggregates.productTypes[0].productType} (${derived.model.aggregates.productTypes[0].count})`
@@ -567,8 +592,8 @@ export function ExecutiveDashboard(props: {
                     </div>
                   ) : (
                     <div className="text-sm leading-6 text-white/70">
-                      Delay concentration is unavailable because this scope contains zero delivery records. Broaden filters or use Reset to
-                      restore delay insights.
+                      Delay concentration is unavailable because this scope contains zero delivery records. Broaden
+                      filters or use Reset to restore delay insights.
                     </div>
                   )}
                 </Panel>
@@ -580,7 +605,9 @@ export function ExecutiveDashboard(props: {
                   {props.runtime.status === "ready" ? (
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-white">{props.runtime.data.demoMode ? "Demo mode" : "Non-demo mode"}</div>
+                        <div className="text-sm font-semibold text-white">
+                          {props.runtime.data.demoMode ? "Demo mode" : "Non-demo mode"}
+                        </div>
                         <div className="mt-1 text-sm leading-6 text-white/70">
                           Service: <span className="font-semibold text-white/85">{props.runtime.data.service}</span>
                         </div>
@@ -608,7 +635,8 @@ export function ExecutiveDashboard(props: {
           </section>
 
           <footer className="pt-2 text-xs leading-6 text-white/50">
-            This dashboard is a portfolio demo. Scores are computed deterministically from seeded fictional records. No production claims are implied.
+            This dashboard is a portfolio demo. Scores are computed deterministically from seeded fictional records. No
+            production claims are implied.
           </footer>
         </div>
       </div>

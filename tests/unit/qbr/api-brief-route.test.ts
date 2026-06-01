@@ -44,7 +44,12 @@ async function countRows(db: ReturnType<typeof createTestDb>["db"]) {
     db.select().from(schema.deliveryRecords),
     db.select().from(schema.evidenceItems),
   ]);
-  return { carriers: carriers.length, periods: periods.length, deliveries: deliveries.length, evidence: evidence.length };
+  return {
+    carriers: carriers.length,
+    periods: periods.length,
+    deliveries: deliveries.length,
+    evidence: evidence.length,
+  };
 }
 
 describe("/api/qbr/brief", () => {
@@ -147,7 +152,9 @@ describe("/api/qbr/brief", () => {
     expect(payload.ok).toBe(false);
     expect(payload.error.code).toBe("LOCAL_PROVIDER_NOT_CONFIGURED");
     // Error responses must not leak configuration, internals, or paths.
-    expect(JSON.stringify(payload)).not.toMatch(/OPENAI_COMPATIBLE|API_KEY|BASE_URL|DATABASE_URL|postgres:\/\/|drizzle|stack|C:\\|C:\//i);
+    expect(JSON.stringify(payload)).not.toMatch(
+      /OPENAI_COMPATIBLE|API_KEY|BASE_URL|DATABASE_URL|postgres:\/\/|drizzle|stack|C:\\|C:\//i,
+    );
   });
 
   it("sanitizes malformed local-provider responses by falling back to mock (VAL-QBR-024)", async () => {

@@ -59,7 +59,7 @@ function lowConfidenceCount(scorecards: Array<{ confidence?: { label?: string } 
 function commitmentOnTimeRate(
   scorecards: Array<{
     components?: Array<{ id: string; metric?: { kind: string; numerator?: number; denominator?: number } }>;
-  }>
+  }>,
 ) {
   let onTime = 0;
   let completed = 0;
@@ -82,7 +82,7 @@ function completionTrendLabel(
       metric?: { kind: string; value?: number };
       dataQuality?: { availability?: string };
     }>;
-  }>
+  }>,
 ) {
   let weightedDelta = 0;
   let weight = 0;
@@ -136,7 +136,9 @@ async function getSummary(page: import("@playwright/test").Page, query: string):
   return payload;
 }
 
-test("filter changes update KPIs, health, comparison, trends, delay patterns, detail, evidence entry points, and executive context (VAL-CARRIER-002)", async ({ page }) => {
+test("filter changes update KPIs, health, comparison, trends, delay patterns, detail, evidence entry points, and executive context (VAL-CARRIER-002)", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
   await expect(page.getByRole("region", { name: /leadership kpis/i })).toBeVisible();
@@ -169,47 +171,81 @@ test("filter changes update KPIs, health, comparison, trends, delay patterns, de
 
   await expect(kpiCard("Portfolio health")).toBeVisible();
   await expect(
-    kpiCard("Portfolio health").getByText(new RegExp(`${escapeRegex(expectedPortfolio.grade)}\\s*\\(${expectedPortfolio.score}\\)`))
+    kpiCard("Portfolio health").getByText(
+      new RegExp(`${escapeRegex(expectedPortfolio.grade)}\\s*\\(${expectedPortfolio.score}\\)`),
+    ),
   ).toBeVisible();
-  await expect(kpiCard("Portfolio health").getByText(new RegExp(`${filtered.counts.carriers}\\s+carriers in scope`))).toBeVisible();
+  await expect(
+    kpiCard("Portfolio health").getByText(new RegExp(`${filtered.counts.carriers}\\s+carriers in scope`)),
+  ).toBeVisible();
 
   await expect(kpiCard("Governance attention")).toBeVisible();
   await expect(kpiCard("Governance attention").getByText(String(expectedGovernance), { exact: true })).toBeVisible();
 
   await expect(kpiCard("Commitment on-time")).toBeVisible();
-  await expect(kpiCard("Commitment on-time").getByText(new RegExp(`${Math.round(expectedOnTime.rate * 100)}%`))).toBeVisible();
   await expect(
-    kpiCard("Commitment on-time").getByText(new RegExp(`${expectedOnTime.onTime}\\s*/\\s*${expectedOnTime.completed}`))
+    kpiCard("Commitment on-time").getByText(new RegExp(`${Math.round(expectedOnTime.rate * 100)}%`)),
+  ).toBeVisible();
+  await expect(
+    kpiCard("Commitment on-time").getByText(new RegExp(`${expectedOnTime.onTime}\\s*/\\s*${expectedOnTime.completed}`)),
   ).toBeVisible();
 
   await expect(kpiCard("Low-confidence reads")).toBeVisible();
   await expect(kpiCard("Low-confidence reads").getByText(String(expectedLowConfidence), { exact: true })).toBeVisible();
 
   await expect(kpiCard("Evidence items")).toBeVisible();
-  await expect(kpiCard("Evidence items").getByText(String(filtered.counts.evidenceItems), { exact: true })).toBeVisible();
-  await expect(kpiCard("Evidence items").getByText(new RegExp(`${filtered.counts.deliveryRecords}\\s+delivery records`))).toBeVisible();
+  await expect(
+    kpiCard("Evidence items").getByText(String(filtered.counts.evidenceItems), { exact: true }),
+  ).toBeVisible();
+  await expect(
+    kpiCard("Evidence items").getByText(new RegExp(`${filtered.counts.deliveryRecords}\\s+delivery records`)),
+  ).toBeVisible();
 
   // 2) Carrier health spectrum reflects the same computed portfolio grade/score.
-  const spectrum = page.getByRole("heading", { name: /carrier health spectrum/i }).locator("..").locator("..");
-  await expect(spectrum.getByText(new RegExp(`Portfolio:\\s+${expectedPortfolio.grade}\\s+\\(${expectedPortfolio.score}\\)`))).toBeVisible();
+  const spectrum = page
+    .getByRole("heading", { name: /carrier health spectrum/i })
+    .locator("..")
+    .locator("..");
+  await expect(
+    spectrum.getByText(new RegExp(`Portfolio:\\s+${expectedPortfolio.grade}\\s+\\(${expectedPortfolio.score}\\)`)),
+  ).toBeVisible();
 
   // 3) Executive context panels match best/worst in the filtered comparison ordering.
-  const bestPanel = page.getByRole("heading", { name: /^Best performer$/ }).locator("..").locator("..").locator("..");
+  const bestPanel = page
+    .getByRole("heading", { name: /^Best performer$/ })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   await expect(bestPanel.getByText(filtered.carriers[0].carrier.name, { exact: false })).toBeVisible();
 
-  const worstPanel = page.getByRole("heading", { name: /^Needs governance attention$/ }).locator("..").locator("..").locator("..");
-  await expect(worstPanel.getByText(filtered.carriers[filtered.carriers.length - 1].carrier.name, { exact: false })).toBeVisible();
+  const worstPanel = page
+    .getByRole("heading", { name: /^Needs governance attention$/ })
+    .locator("..")
+    .locator("..")
+    .locator("..");
+  await expect(
+    worstPanel.getByText(filtered.carriers[filtered.carriers.length - 1].carrier.name, { exact: false }),
+  ).toBeVisible();
 
   // 4) Trend direction panel reflects filtered carrier set (computed label).
   const expectedTrend = completionTrendLabel(filtered.carriers);
-  const trendPanel = page.getByRole("heading", { name: /^Trend direction$/ }).locator("..").locator("..").locator("..");
+  const trendPanel = page
+    .getByRole("heading", { name: /^Trend direction$/ })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   await expect(trendPanel.getByText(expectedTrend)).toBeVisible();
 
   // 5) Delay concentration panel matches filtered delay aggregates and enables proof entry.
-  const delayPanel = page.getByRole("heading", { name: /^Delay concentration$/ }).locator("..").locator("..").locator("..");
+  const delayPanel = page
+    .getByRole("heading", { name: /^Delay concentration$/ })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   const topDelay =
-    (filtered.aggregates.delayReasons as Array<{ delayReason: string; count: number }>).find((d) => d.delayReason !== "none") ??
-    null;
+    (filtered.aggregates.delayReasons as Array<{ delayReason: string; count: number }>).find(
+      (d) => d.delayReason !== "none",
+    ) ?? null;
   expect(topDelay).toBeTruthy();
   await expect(delayPanel.getByText(topDelay!.delayReason, { exact: false })).toBeVisible();
 
@@ -222,13 +258,19 @@ test("filter changes update KPIs, health, comparison, trends, delay patterns, de
   const selectedCarrierId = new URL(page.url()).searchParams.get("selectedCarrierId");
   if (!selectedCarrierId) throw new Error("Expected selectedCarrierId after selecting a carrier.");
 
-  const detailRes = await page.request.get(`/api/carriers/${selectedCarrierId}/scorecard?region=emea&productType=colocation`);
+  const detailRes = await page.request.get(
+    `/api/carriers/${selectedCarrierId}/scorecard?region=emea&productType=colocation`,
+  );
   expect(detailRes.ok()).toBeTruthy();
   const detailPayload = (await detailRes.json()) as unknown;
   assertCarrierDetailOk(detailPayload);
   expect(detailPayload.carrier).toBeTruthy();
 
-  const detailPanel = page.getByRole("heading", { name: /selected carrier detail/i }).locator("..").locator("..").locator("..");
+  const detailPanel = page
+    .getByRole("heading", { name: /selected carrier detail/i })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   await expect(detailPanel.getByText(detailPayload.carrier!.name, { exact: false })).toBeVisible({ timeout: 10_000 });
 
   // 7) Evidence entry points honor the same active filters.
@@ -251,7 +293,9 @@ test("filter changes update KPIs, health, comparison, trends, delay patterns, de
   }
 });
 
-test("combined filters compose by intersection and active filter pills remain visible (VAL-CARRIER-003)", async ({ page }) => {
+test("combined filters compose by intersection and active filter pills remain visible (VAL-CARRIER-003)", async ({
+  page,
+}) => {
   // Use a direct URL to avoid relying on select timing while still validating visible active pills + intersection results.
   await page.goto("/?region=emea&productType=colocation");
   await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
@@ -293,7 +337,9 @@ test("combined filters compose by intersection and active filter pills remain vi
   await expect(comparisonRegion.getByText(new RegExp(`\\b${both.counts.carriers}\\s+carriers\\b`))).toBeVisible();
 });
 
-test("carrier surfaces show safe loading and error states for filter options, comparison, detail, and evidence without stale content (VAL-CARRIER-023)", async ({ page }) => {
+test("carrier surfaces show safe loading and error states for filter options, comparison, detail, and evidence without stale content (VAL-CARRIER-023)", async ({
+  page,
+}) => {
   // Fail filter options once to assert safe retry behavior.
   let failOptions = true;
   await page.route("**/api/scorecards/options", async (route) => {
@@ -311,8 +357,13 @@ test("carrier surfaces show safe loading and error states for filter options, co
 
   await page.goto("/");
   await expect(page.getByText(/unable to load filter options/i)).toBeVisible();
-  await page.getByRole("button", { name: /^Retry$/ }).first().click();
-  await expect(page.getByLabel("Carrier", { exact: true }).locator("option", { hasText: /Aurora TransitLink/i })).toHaveCount(1);
+  await page
+    .getByRole("button", { name: /^Retry$/ })
+    .first()
+    .click();
+  await expect(
+    page.getByLabel("Carrier", { exact: true }).locator("option", { hasText: /Aurora TransitLink/i }),
+  ).toHaveCount(1);
 
   // Fail the next summary fetch triggered by a filter change.
   let failSummary = true;
@@ -331,7 +382,10 @@ test("carrier surfaces show safe loading and error states for filter options, co
 
   await page.getByLabel("Region").selectOption("emea");
   await expect(page.getByText(/unable to load scorecards for this scope/i).first()).toBeVisible();
-  await page.getByRole("button", { name: /^Retry$/ }).first().click();
+  await page
+    .getByRole("button", { name: /^Retry$/ })
+    .first()
+    .click();
   await expect(page.getByTestId("comparison-card").first()).toBeVisible({ timeout: 10_000 });
 
   // Select carrier A successfully.
@@ -346,7 +400,11 @@ test("carrier surfaces show safe loading and error states for filter options, co
   assertCarrierDetailOk(payloadA);
   expect(payloadA.carrier).toBeTruthy();
   const carrierAName = payloadA.carrier!.name;
-  const detailPanel = page.getByRole("heading", { name: /selected carrier detail/i }).locator("..").locator("..").locator("..");
+  const detailPanel = page
+    .getByRole("heading", { name: /selected carrier detail/i })
+    .locator("..")
+    .locator("..")
+    .locator("..");
   await expect(detailPanel.getByText(carrierAName, { exact: false })).toBeVisible({ timeout: 10_000 });
 
   // Fail a subsequent carrier detail request and ensure we never show carrier A stale detail under the new selection.

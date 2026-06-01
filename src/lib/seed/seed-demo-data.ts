@@ -26,7 +26,7 @@ async function seedMetaTableExists(db: DemoDb) {
       select 1
       from information_schema.tables
       where table_schema = 'public' and table_name = 'seed_meta'
-    ) as exists;`
+    ) as exists;`,
   );
   const rows = rowsFromExecuteResult(res) as Array<{ exists?: boolean }>;
   return rows[0]?.exists === true;
@@ -37,7 +37,7 @@ async function readSeedMeta(db: DemoDb, datasetId: string) {
     sql`select dataset_id, seed_version, fingerprint, seeded_at
         from seed_meta
         where dataset_id = ${datasetId}
-        limit 1;`
+        limit 1;`,
   );
   const rows = rowsFromExecuteResult(res) as Array<{
     dataset_id: string;
@@ -60,7 +60,7 @@ export async function assertSeedTargetAllowed(db: DemoDb, opts: SeedOptions) {
   }
 
   throw new Error(
-    `Refusing to seed this database. Demo seed requires an explicit allowlist token on first run via ${SEED_ALLOWLIST_ENV_VAR}.`
+    `Refusing to seed this database. Demo seed requires an explicit allowlist token on first run via ${SEED_ALLOWLIST_ENV_VAR}.`,
   );
 }
 
@@ -110,7 +110,7 @@ export async function seedDemoData(db: DemoDb, dataset: DemoDataset, opts: SeedO
           ...r,
           openedAt: new Date(r.openedAt),
           closedAt: r.closedAt ? new Date(r.closedAt) : null,
-        }))
+        })),
       )
       .onConflictDoUpdate({
         target: deliveryRecords.seedKey,

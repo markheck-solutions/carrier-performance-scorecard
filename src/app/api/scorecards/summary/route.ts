@@ -17,40 +17,28 @@ export async function GET(request: NextRequest) {
     if (isInvalidFilterError(error)) {
       return NextResponse.json(
         { ok: false, error: { code: error.code, message: error.message, details: error.details } },
-        { status: error.status }
+        { status: error.status },
       );
     }
     return NextResponse.json(
       { ok: false, error: { message: "Unable to compute scorecards right now." } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export function POST() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PUT() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PATCH() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function DELETE() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }

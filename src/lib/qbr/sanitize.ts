@@ -53,7 +53,8 @@ export function coerceBriefSections(value: unknown): QbrBriefSections | null {
   const questions = asStringArray(obj.questions);
   const governanceActions = asStringArray(obj.governanceActions);
   if (!strengths || !concerns || !questions || !governanceActions) return null;
-  if (strengths.length === 0 || concerns.length === 0 || questions.length === 0 || governanceActions.length === 0) return null;
+  if (strengths.length === 0 || concerns.length === 0 || questions.length === 0 || governanceActions.length === 0)
+    return null;
   return { strengths, concerns, questions, governanceActions };
 }
 

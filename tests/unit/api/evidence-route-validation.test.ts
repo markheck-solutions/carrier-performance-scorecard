@@ -60,7 +60,9 @@ describe("/api/evidence evidenceIds validation (VAL-CROSS-007)", () => {
     await seed(db);
     installRouteDb(db);
 
-    const res = await getEvidence(new NextRequest("http://example.test/api/evidence?evidenceIds=not-a-real-evidence-id"));
+    const res = await getEvidence(
+      new NextRequest("http://example.test/api/evidence?evidenceIds=not-a-real-evidence-id"),
+    );
     expect(res.status).toBe(400);
 
     const payload = await res.json();
@@ -70,11 +72,13 @@ describe("/api/evidence evidenceIds validation (VAL-CROSS-007)", () => {
         error: expect.objectContaining({
           code: "INVALID_EVIDENCE_IDS",
         }),
-      })
+      }),
     );
 
     // No internal details.
-    expect(safeJsonString(payload)).not.toMatch(/stack|select \*|drizzle|postgres:\/\/|DATABASE_URL|OPENAI_COMPATIBLE/i);
+    expect(safeJsonString(payload)).not.toMatch(
+      /stack|select \*|drizzle|postgres:\/\/|DATABASE_URL|OPENAI_COMPATIBLE/i,
+    );
   });
 
   it("preserves the safe empty evidence response for syntactically valid but unknown UUIDs", async () => {

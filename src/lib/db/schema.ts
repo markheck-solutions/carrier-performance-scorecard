@@ -24,17 +24,12 @@ import {
 const sqlInList = (values: readonly string[]) =>
   sql.raw(`('${values.map((v) => v.replaceAll("'", "''")).join("','")}')`);
 
-export const seedMeta = pgTable(
-  "seed_meta",
-  {
-    datasetId: text("dataset_id").primaryKey().notNull(),
-    seedVersion: text("seed_version").notNull(),
-    fingerprint: text("fingerprint").notNull(),
-    seededAt: timestamp("seeded_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  }
-);
+export const seedMeta = pgTable("seed_meta", {
+  datasetId: text("dataset_id").primaryKey().notNull(),
+  seedVersion: text("seed_version").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  seededAt: timestamp("seeded_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const carriers = pgTable(
   "carriers",
@@ -52,13 +47,10 @@ export const carriers = pgTable(
     shortCodeUnique: uniqueIndex("carriers_short_code_unique").on(t.shortCode),
     tierCheck: check(
       "carriers_relationship_tier_check",
-      sql`${t.relationshipTier} in ${sqlInList(RELATIONSHIP_TIER_VALUES)}`
+      sql`${t.relationshipTier} in ${sqlInList(RELATIONSHIP_TIER_VALUES)}`,
     ),
-    regionFocusCheck: check(
-      "carriers_region_focus_check",
-      sql`${t.regionFocus} in ${sqlInList(REGION_VALUES)}`
-    ),
-  })
+    regionFocusCheck: check("carriers_region_focus_check", sql`${t.regionFocus} in ${sqlInList(REGION_VALUES)}`),
+  }),
 );
 
 export const periods = pgTable(
@@ -74,7 +66,7 @@ export const periods = pgTable(
   (t) => ({
     seedKeyUnique: uniqueIndex("periods_seed_key_unique").on(t.seedKey),
     dateOrderCheck: check("periods_date_order_check", sql`${t.endDate} >= ${t.startDate}`),
-  })
+  }),
 );
 
 export const deliveryRecords = pgTable(
@@ -110,42 +102,33 @@ export const deliveryRecords = pgTable(
     regionCheck: check("delivery_records_region_check", sql`${t.region} in ${sqlInList(REGION_VALUES)}`),
     productTypeCheck: check(
       "delivery_records_product_type_check",
-      sql`${t.productType} in ${sqlInList(PRODUCT_TYPE_VALUES)}`
+      sql`${t.productType} in ${sqlInList(PRODUCT_TYPE_VALUES)}`,
     ),
-    stageCheck: check(
-      "delivery_records_stage_check",
-      sql`${t.stage} in ${sqlInList(DELIVERY_STAGE_VALUES)}`
-    ),
+    stageCheck: check("delivery_records_stage_check", sql`${t.stage} in ${sqlInList(DELIVERY_STAGE_VALUES)}`),
     delayReasonCheck: check(
       "delivery_records_delay_reason_check",
-      sql`${t.delayReason} in ${sqlInList(DELAY_REASON_VALUES)}`
+      sql`${t.delayReason} in ${sqlInList(DELAY_REASON_VALUES)}`,
     ),
     customerImpactCheck: check(
       "delivery_records_customer_impact_check",
-      sql`${t.customerImpact} in ${sqlInList(CUSTOMER_IMPACT_VALUES)}`
+      sql`${t.customerImpact} in ${sqlInList(CUSTOMER_IMPACT_VALUES)}`,
     ),
     nonNegativeDelayDays: check("delivery_records_delay_days_nonneg", sql`${t.delayDays} >= 0`),
-    nonNegativeResp: check(
-      "delivery_records_responsiveness_nonneg",
-      sql`${t.responsivenessHours} >= 0`
-    ),
-    nonNegativeEscalations: check(
-      "delivery_records_escalations_nonneg",
-      sql`${t.escalationCount} >= 0`
-    ),
+    nonNegativeResp: check("delivery_records_responsiveness_nonneg", sql`${t.responsivenessHours} >= 0`),
+    nonNegativeEscalations: check("delivery_records_escalations_nonneg", sql`${t.escalationCount} >= 0`),
     completedAfterCommitted: check(
       "delivery_records_completed_after_committed_check",
-      sql`${t.completedDate} is null or ${t.completedDate} >= ${t.committedDate}`
+      sql`${t.completedDate} is null or ${t.completedDate} >= ${t.committedDate}`,
     ),
     closedAfterOpened: check(
       "delivery_records_closed_after_opened_check",
-      sql`${t.closedAt} is null or ${t.closedAt} >= ${t.openedAt}`
+      sql`${t.closedAt} is null or ${t.closedAt} >= ${t.openedAt}`,
     ),
     delayDaysMatchesReason: check(
       "delivery_records_delay_reason_days_consistency_check",
-      sql`(${t.delayReason} = 'none' and ${t.delayDays} = 0) or (${t.delayReason} <> 'none' and ${t.delayDays} >= 0)`
+      sql`(${t.delayReason} = 'none' and ${t.delayDays} = 0) or (${t.delayReason} <> 'none' and ${t.delayDays} >= 0)`,
     ),
-  })
+  }),
 );
 
 export const evidenceItems = pgTable(
@@ -168,7 +151,7 @@ export const evidenceItems = pgTable(
   },
   (t) => ({
     seedKeyUnique: uniqueIndex("evidence_items_seed_key_unique").on(t.seedKey),
-  })
+  }),
 );
 
 export const schema = {

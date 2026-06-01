@@ -57,9 +57,7 @@ for (const check of forbidden) {
   const count = countMatches(check.pattern, readme);
   if (count > 0) {
     failed = true;
-    console.error(
-      `[README verify] Forbidden content found (${check.id}): ${check.description} (matches: ${count})`,
-    );
+    console.error(`[README verify] Forbidden content found (${check.id}): ${check.description} (matches: ${count})`);
   }
 }
 
@@ -67,9 +65,7 @@ for (const check of required) {
   const count = countMatches(check.pattern, readme);
   if (count === 0) {
     failed = true;
-    console.error(
-      `[README verify] Required content missing (${check.id}): ${check.description}`,
-    );
+    console.error(`[README verify] Required content missing (${check.id}): ${check.description}`);
   }
 }
 

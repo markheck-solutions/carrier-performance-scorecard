@@ -1,4 +1,10 @@
-import { SCORE_COMPONENTS, SCORE_GRADE_THRESHOLDS, SCORE_MANIFEST, SCORE_ROUNDING, SCORE_TIE_BREAKERS } from "./manifest";
+import {
+  SCORE_COMPONENTS,
+  SCORE_GRADE_THRESHOLDS,
+  SCORE_MANIFEST,
+  SCORE_ROUNDING,
+  SCORE_TIE_BREAKERS,
+} from "./manifest";
 import { normalizeLinear, roundTo } from "./normalize";
 import { selectEvidenceIds, type EvidenceCandidate } from "./evidence";
 import type { ProductType, Region } from "../db/demo-values";
@@ -57,7 +63,10 @@ function normalizeFilters(filters: ScoreFilters): ScoreFilters {
   };
 }
 
-function computePeriodWindow(periodsInScope: readonly PeriodInfo[], selectedPeriodSeedKey: string | null): PeriodWindow {
+function computePeriodWindow(
+  periodsInScope: readonly PeriodInfo[],
+  selectedPeriodSeedKey: string | null,
+): PeriodWindow {
   if (selectedPeriodSeedKey) {
     const match = periodsInScope.find((p) => p.seedKey === selectedPeriodSeedKey);
     if (match) {
@@ -352,7 +361,7 @@ export function buildCarrierScorecards(params: {
     const confidenceNotes: string[] = [];
     if (lowVolume) {
       confidenceNotes.push(
-        `Limited sample size (${sampleCount} record(s)) in this scope. Treat rankings and grades as directional.`
+        `Limited sample size (${sampleCount} record(s)) in this scope. Treat rankings and grades as directional.`,
       );
     }
 
@@ -381,7 +390,7 @@ export function buildCarrierScorecards(params: {
         evidenceCandidates: carrierEvidence,
         sampleCount,
         periodsInScope: params.periods,
-      })
+      }),
     );
 
     const totalScoreRaw = components.reduce((acc, c) => acc + c.contribution, 0);

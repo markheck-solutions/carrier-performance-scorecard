@@ -109,7 +109,7 @@ describe("scoring engine and read models", () => {
     const summary = await readScorecardsSummary(db, { region: null, productType: null, period: null, carrierId: null });
     for (const carrier of summary.carriers) {
       for (const comp of carrier.components) {
-        const expected = Math.round(((comp.normalizedScore / 100) * comp.weight) * 10) / 10;
+        const expected = Math.round((comp.normalizedScore / 100) * comp.weight * 10) / 10;
         expect(comp.contribution).toBeCloseTo(expected, 6);
       }
       const expectedTotal = Math.round(carrier.components.reduce((acc, c) => acc + c.contribution, 0));
@@ -178,7 +178,10 @@ describe("scoring engine and read models", () => {
     const goodCommit = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "c1", delayDays: 0 }, { ...base, id: "c2", delayDays: 0 }],
+      deliveries: [
+        { ...base, id: "c1", delayDays: 0 },
+        { ...base, id: "c2", delayDays: 0 },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
@@ -186,27 +189,29 @@ describe("scoring engine and read models", () => {
     const badCommit = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "c1", delayDays: 10, delayReason: "permit" }, { ...base, id: "c2", delayDays: 10, delayReason: "permit" }],
+      deliveries: [
+        { ...base, id: "c1", delayDays: 10, delayReason: "permit" },
+        { ...base, id: "c2", delayDays: 10, delayReason: "permit" },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
 
-    expect(
-      goodCommit.components.find((c) => c.id === "commitment_adherence")!.normalizedScore
-    ).toBeGreaterThan(
-      badCommit.components.find((c) => c.id === "commitment_adherence")!.normalizedScore
+    expect(goodCommit.components.find((c) => c.id === "commitment_adherence")!.normalizedScore).toBeGreaterThan(
+      badCommit.components.find((c) => c.id === "commitment_adherence")!.normalizedScore,
     );
 
-    expect(
-      goodCommit.components.find((c) => c.id === "delay_severity")!.normalizedScore
-    ).toBeGreaterThan(
-      badCommit.components.find((c) => c.id === "delay_severity")!.normalizedScore
+    expect(goodCommit.components.find((c) => c.id === "delay_severity")!.normalizedScore).toBeGreaterThan(
+      badCommit.components.find((c) => c.id === "delay_severity")!.normalizedScore,
     );
 
     const goodRepeat = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "r1", isRepeat: false }, { ...base, id: "r2", isRepeat: false }],
+      deliveries: [
+        { ...base, id: "r1", isRepeat: false },
+        { ...base, id: "r2", isRepeat: false },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
@@ -214,31 +219,40 @@ describe("scoring engine and read models", () => {
     const badRepeat = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "r1", isRepeat: true, issueSignature: "x" }, { ...base, id: "r2", isRepeat: true, issueSignature: "x" }],
+      deliveries: [
+        { ...base, id: "r1", isRepeat: true, issueSignature: "x" },
+        { ...base, id: "r2", isRepeat: true, issueSignature: "x" },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
 
     expect(goodRepeat.components.find((c) => c.id === "repeat_issue_concentration")!.normalizedScore).toBeGreaterThan(
-      badRepeat.components.find((c) => c.id === "repeat_issue_concentration")!.normalizedScore
+      badRepeat.components.find((c) => c.id === "repeat_issue_concentration")!.normalizedScore,
     );
 
     const goodResp = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "s1", responsivenessHours: 4 }, { ...base, id: "s2", responsivenessHours: 4 }],
+      deliveries: [
+        { ...base, id: "s1", responsivenessHours: 4 },
+        { ...base, id: "s2", responsivenessHours: 4 },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
     const badResp = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "s1", responsivenessHours: 80 }, { ...base, id: "s2", responsivenessHours: 80 }],
+      deliveries: [
+        { ...base, id: "s1", responsivenessHours: 80 },
+        { ...base, id: "s2", responsivenessHours: 80 },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
     expect(goodResp.components.find((c) => c.id === "responsiveness")!.normalizedScore).toBeGreaterThan(
-      badResp.components.find((c) => c.id === "responsiveness")!.normalizedScore
+      badResp.components.find((c) => c.id === "responsiveness")!.normalizedScore,
     );
 
     const goodAging = buildCarrierScorecards({
@@ -258,25 +272,31 @@ describe("scoring engine and read models", () => {
     }).scorecards[0]!;
 
     expect(goodAging.components.find((c) => c.id === "aging_open_commitments")!.normalizedScore).toBeGreaterThan(
-      badAging.components.find((c) => c.id === "aging_open_commitments")!.normalizedScore
+      badAging.components.find((c) => c.id === "aging_open_commitments")!.normalizedScore,
     );
 
     const goodEsc = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "e1", escalationCount: 0 }, { ...base, id: "e2", escalationCount: 0 }],
+      deliveries: [
+        { ...base, id: "e1", escalationCount: 0 },
+        { ...base, id: "e2", escalationCount: 0 },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
     const badEsc = buildCarrierScorecards({
       carriers: [carrier],
       periods,
-      deliveries: [{ ...base, id: "e1", escalationCount: 4 }, { ...base, id: "e2", escalationCount: 4 }],
+      deliveries: [
+        { ...base, id: "e1", escalationCount: 4 },
+        { ...base, id: "e2", escalationCount: 4 },
+      ],
       evidenceCandidates: evidence,
       filters: { carrierId: null, region: null, productType: null, period: null },
     }).scorecards[0]!;
     expect(goodEsc.components.find((c) => c.id === "escalation_volume")!.normalizedScore).toBeGreaterThan(
-      badEsc.components.find((c) => c.id === "escalation_volume")!.normalizedScore
+      badEsc.components.find((c) => c.id === "escalation_volume")!.normalizedScore,
     );
 
     const improving = buildCarrierScorecards({
@@ -302,7 +322,7 @@ describe("scoring engine and read models", () => {
     }).scorecards[0]!;
 
     expect(improving.components.find((c) => c.id === "completion_trend")!.normalizedScore).toBeGreaterThan(
-      declining.components.find((c) => c.id === "completion_trend")!.normalizedScore
+      declining.components.find((c) => c.id === "completion_trend")!.normalizedScore,
     );
   });
 
@@ -310,8 +330,18 @@ describe("scoring engine and read models", () => {
     const { db } = createTestDb();
     await seed(db);
 
-    const baseline = await readScorecardsSummary(db, { region: null, productType: null, period: null, carrierId: null });
-    const filtered = await readScorecardsSummary(db, { region: "na", productType: null, period: null, carrierId: null });
+    const baseline = await readScorecardsSummary(db, {
+      region: null,
+      productType: null,
+      period: null,
+      carrierId: null,
+    });
+    const filtered = await readScorecardsSummary(db, {
+      region: "na",
+      productType: null,
+      period: null,
+      carrierId: null,
+    });
 
     expect(filtered.counts.deliveryRecords).toBeLessThanOrEqual(baseline.counts.deliveryRecords);
     expect(filtered.aggregates.regions.every((r) => r.region === "na")).toBe(true);
@@ -333,11 +363,21 @@ describe("scoring engine and read models", () => {
     });
     expect(evidenceForFiltered.items.length).toBe(filtered.counts.evidenceItems);
 
-    const productFiltered = await readScorecardsSummary(db, { region: null, productType: "fiber", period: null, carrierId: null });
+    const productFiltered = await readScorecardsSummary(db, {
+      region: null,
+      productType: "fiber",
+      period: null,
+      carrierId: null,
+    });
     expect(productFiltered.counts.deliveryRecords).toBeLessThanOrEqual(baseline.counts.deliveryRecords);
     expect(productFiltered.aggregates.productTypes.every((p) => p.productType === "fiber")).toBe(true);
 
-    const periodFiltered = await readScorecardsSummary(db, { region: null, productType: null, period: "2026-02", carrierId: null });
+    const periodFiltered = await readScorecardsSummary(db, {
+      region: null,
+      productType: null,
+      period: "2026-02",
+      carrierId: null,
+    });
     expect(periodFiltered.counts.deliveryRecords).toBeLessThanOrEqual(baseline.counts.deliveryRecords);
     expect(periodFiltered.aggregates.periods.every((p) => p.period === "2026-02")).toBe(true);
   });
@@ -351,7 +391,12 @@ describe("scoring engine and read models", () => {
     const fromSummary = summary.carriers.find((c) => c.carrier.id === targetCarrierId);
     expect(fromSummary).toBeTruthy();
 
-    const detail = await readCarrierDetail(db, targetCarrierId, { region: null, productType: null, period: null, carrierId: null });
+    const detail = await readCarrierDetail(db, targetCarrierId, {
+      region: null,
+      productType: null,
+      period: null,
+      carrierId: null,
+    });
     expect(detail.scorecard).toBeTruthy();
 
     expect(detail.scorecard).toEqual(fromSummary);
@@ -362,7 +407,12 @@ describe("scoring engine and read models", () => {
     const dataset = await seed(db);
 
     const carrierId = dataset.carriers[0]!.id;
-    const detail = await readCarrierDetail(db, carrierId, { region: null, productType: null, period: null, carrierId: null });
+    const detail = await readCarrierDetail(db, carrierId, {
+      region: null,
+      productType: null,
+      period: null,
+      carrierId: null,
+    });
     expect(detail.scorecard).toBeTruthy();
 
     const cited = new Set(detail.scorecard!.components.flatMap((c) => c.evidenceIds));
@@ -469,7 +519,12 @@ describe("scoring engine and read models", () => {
     await seed(db);
 
     // Seeded demo guarantees region 'latam' has zero records.
-    const empty = await readScorecardsSummary(db, { region: "latam", productType: null, period: null, carrierId: null });
+    const empty = await readScorecardsSummary(db, {
+      region: "latam",
+      productType: null,
+      period: null,
+      carrierId: null,
+    });
     expect(empty.counts.deliveryRecords).toBe(0);
     expect(empty.carriers).toEqual([]);
     expect(empty.aggregates.delayReasons).toEqual([]);
@@ -514,7 +569,12 @@ describe("scoring engine and read models", () => {
 
     // Choose a carrier and force an outlier scenario via filter: period with the largest delay outlier exists in seed (Aurora 14 day delay, still within cap).
     const aurora = dataset.carriers.find((c) => c.seedKey === "carrier:aurora")!;
-    const summary = await readScorecardsSummary(db, { carrierId: aurora.id, region: null, productType: null, period: null });
+    const summary = await readScorecardsSummary(db, {
+      carrierId: aurora.id,
+      region: null,
+      productType: null,
+      period: null,
+    });
     expect(summary.carriers.length).toBe(1);
 
     const comps = summary.carriers[0]!.components;

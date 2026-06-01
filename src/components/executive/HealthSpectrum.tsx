@@ -44,15 +44,13 @@ export function HealthSpectrum(props: {
   const interactive = Boolean(props.onSelectCarrier);
   const onSelectCarrier = props.onSelectCarrier;
   const selectedCarrierId = props.selectedCarrierId ?? null;
-  const markers = [...props.scorecards]
-    .slice(0, 28)
-    .map((c, idx) => {
-      const left = clamp01(c.totalScore / 100) * 100;
-      const row = idx % 2;
-      const top = row === 0 ? 14 : 30;
-      const style = { left: `${left}%`, top } satisfies CSSProperties;
-      return { id: c.carrier.id, shortCode: c.carrier.shortCode, name: c.carrier.name, grade: c.grade, style };
-    });
+  const markers = [...props.scorecards].slice(0, 28).map((c, idx) => {
+    const left = clamp01(c.totalScore / 100) * 100;
+    const row = idx % 2;
+    const top = row === 0 ? 14 : 30;
+    const style = { left: `${left}%`, top } satisfies CSSProperties;
+    return { id: c.carrier.id, shortCode: c.carrier.shortCode, name: c.carrier.name, grade: c.grade, style };
+  });
 
   const portfolioLeft = clamp01(props.portfolioScore / 100) * 100;
 
@@ -65,7 +63,9 @@ export function HealthSpectrum(props: {
             Each marker is a fictional carrier, positioned by deterministic score. Bands map to grade thresholds.
           </p>
         </div>
-        <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeColor(props.portfolioGrade)}`}>
+        <div
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${gradeColor(props.portfolioGrade)}`}
+        >
           Portfolio: {props.portfolioGrade} ({props.portfolioScore})
         </div>
       </div>
@@ -143,7 +143,10 @@ export function HealthSpectrum(props: {
               aria-hidden="true"
               data-testid="health-spectrum-portfolio-marker"
             >
-              <div className="h-11 w-0.5 rounded-full bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]" aria-hidden="true" />
+              <div
+                className="h-11 w-0.5 rounded-full bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]"
+                aria-hidden="true"
+              />
               <div className="mt-1 text-[10px] font-semibold text-white/80">portfolio</div>
             </div>
           </div>

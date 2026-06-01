@@ -1,0 +1,19 @@
+{
+  "threshold": 5,
+  "minLines": 12,
+  "minTokens": 100,
+  "reporters": ["console"],
+  "formats": ["typescript", "tsx", "javascript", "json", "markdown", "yaml", "css"],
+  "ignore": [
+    "**/.factory/**",
+    "**/.git/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/node_modules/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "next-env.d.ts",
+    "package-lock.json",
+    "tsconfig.tsbuildinfo"
+  ]
+}

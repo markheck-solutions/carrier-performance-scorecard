@@ -29,6 +29,7 @@ function allowlisted(kind: string, sample: string, file: string, contextLine: st
   if (kind === "database_url") {
     // Allow obvious non-secret placeholders used in tests or config examples.
     if (s.includes("example.invalid") || s.includes("example.test") || s === "configured") return true;
+    if (s === "postgres://|sk-|password|secret") return true;
   }
   if (file === "package-lock.json") {
     // Lockfile integrity metadata can contain random-looking base64 that trips token heuristics.

@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useSearchParams } from "next/navigation";
 
 import { SCORE_MANIFEST } from "@/lib/scoring/manifest";
-import type { CarrierScorecard, ScoreComponentResult, ScoreFilters, ScoreScope, ScoringComponentId } from "@/lib/scoring/types";
+import type {
+  CarrierScorecard,
+  ScoreComponentResult,
+  ScoreFilters,
+  ScoreScope,
+  ScoringComponentId,
+} from "@/lib/scoring/types";
 import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/db/demo-values";
 import { buildDashboardQueryString, parseDashboardStateFromSearchParams } from "@/lib/filters/dashboard-state";
 
@@ -88,9 +94,7 @@ type EvidenceLoadState<T> =
   | { status: "ready"; requestKey: string; data: T }
   | { status: "error"; requestKey: string; message: string };
 
-type EvidenceFocusRestore =
-  | { kind: "element"; element: HTMLElement }
-  | { kind: "selector"; selector: string };
+type EvidenceFocusRestore = { kind: "element"; element: HTMLElement } | { kind: "selector"; selector: string };
 
 function formatEnumLabel(value: string) {
   if (value === "na") return "North America";
@@ -136,13 +140,15 @@ function formatMetric(component: ScoreComponentResult | null) {
 function issueNote(issues: ReturnType<typeof parseDashboardStateFromSearchParams>["issues"]) {
   if (issues.length === 0) return null;
   const first = issues[0]!;
-  if (first.kind === "invalid_region" || first.kind === "invalid_productType") return "Some filters were not recognized and were reset.";
+  if (first.kind === "invalid_region" || first.kind === "invalid_productType")
+    return "Some filters were not recognized and were reset.";
   if (first.kind === "invalid_period") return "The requested period was not recognized and was reset.";
   if (first.kind === "invalid_carrierId") return "A carrier link or filter value was not recognized and was reset.";
   if (first.kind === "invalid_evidenceId") return "The requested evidence link was not recognized and was reset.";
   if (first.kind === "invalid_evidenceDimension" || first.kind === "invalid_evidenceDelayReason")
     return "The requested evidence scope was not recognized and was reset.";
-  if (first.kind === "conflicting_evidenceScope") return "This proof link contained conflicting parameters and was reset to a single evidence scope.";
+  if (first.kind === "conflicting_evidenceScope")
+    return "This proof link contained conflicting parameters and was reset to a single evidence scope.";
   return "Some URL parameters were not recognized and were reset.";
 }
 
@@ -280,13 +286,16 @@ function ComparisonCard(props: {
             <span className="mx-1 text-white/25" aria-hidden="true">
               •
             </span>
-            Region focus: <span className="font-semibold text-white/75">{props.scorecard.carrier.regionFocus.toUpperCase()}</span>{" "}
+            Region focus:{" "}
+            <span className="font-semibold text-white/75">{props.scorecard.carrier.regionFocus.toUpperCase()}</span>{" "}
             <span className="mx-1 text-white/25" aria-hidden="true">
               •
             </span>
             Product mix:{" "}
             <span className="font-semibold text-white/75">
-              {topProduct ? `${formatEnumLabel(topProduct.productType)} (${Math.round(topProduct.share * 100)}%)` : "N/A"}
+              {topProduct
+                ? `${formatEnumLabel(topProduct.productType)} (${Math.round(topProduct.share * 100)}%)`
+                : "N/A"}
             </span>{" "}
             <span className="mx-1 text-white/25" aria-hidden="true">
               •
@@ -346,7 +355,9 @@ function ScoreBreakdownTable(props: {
               <div className="mt-1 text-xs text-white/60">
                 Raw metric:{" "}
                 <span className="font-semibold text-white/75">
-                  {c.metric.kind === "ratio" ? `${c.metric.numerator}/${c.metric.denominator}` : `${Math.round(c.metric.value * 100) / 100}`}
+                  {c.metric.kind === "ratio"
+                    ? `${c.metric.numerator}/${c.metric.denominator}`
+                    : `${Math.round(c.metric.value * 100) / 100}`}
                 </span>{" "}
                 <span className="text-white/40">({c.metric.unit})</span>
                 <span className="mx-2 text-white/25" aria-hidden="true">
@@ -538,8 +549,9 @@ function EvidencePanel(props: {
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-white/70">
                     <div>
                       Showing{" "}
-                      <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.returnedItems}</span> of{" "}
-                      <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.totalItems}</span> proof items
+                      <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.returnedItems}</span>{" "}
+                      of <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.totalItems}</span>{" "}
+                      proof items
                       {state.data.meta.cap ? (
                         <>
                           {" "}
@@ -552,7 +564,9 @@ function EvidencePanel(props: {
                     </div>
                     {state.data.meta.missingEvidenceIds.length > 0 ? (
                       <div>
-                        <span className="font-semibold text-white/85 tabular-nums">{state.data.meta.missingEvidenceIds.length}</span>{" "}
+                        <span className="font-semibold text-white/85 tabular-nums">
+                          {state.data.meta.missingEvidenceIds.length}
+                        </span>{" "}
                         missing reference(s) in this scope
                       </div>
                     ) : null}
@@ -611,7 +625,10 @@ function EvidencePanel(props: {
                           <div className="font-semibold text-white/75">Timing context</div>
                           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
                             <span>
-                              Committed <span className="font-semibold text-white/80 tabular-nums">{item.committedDate.slice(0, 10)}</span>
+                              Committed{" "}
+                              <span className="font-semibold text-white/80 tabular-nums">
+                                {item.committedDate.slice(0, 10)}
+                              </span>
                             </span>
                             <span>
                               Forecast{" "}
@@ -632,7 +649,9 @@ function EvidencePanel(props: {
                           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
                             <span>
                               Response{" "}
-                              <span className="font-semibold text-white/80 tabular-nums">{item.responsivenessHours}h</span>
+                              <span className="font-semibold text-white/80 tabular-nums">
+                                {item.responsivenessHours}h
+                              </span>
                             </span>
                             <span>
                               Escalations{" "}
@@ -663,7 +682,10 @@ function EvidencePanel(props: {
   );
 }
 
-export function ExecutiveDashboardInteractive(props: { initialSummary: ScorecardsSummaryModel; runtime: RuntimePosture }) {
+export function ExecutiveDashboardInteractive(props: {
+  initialSummary: ScorecardsSummaryModel;
+  runtime: RuntimePosture;
+}) {
   const nextSearchParams = useSearchParams();
   const [searchString, setSearchString] = useState(() => nextSearchParams.toString());
 
@@ -698,7 +720,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     }
     const key = active.getAttribute("data-evidence-origin");
     if (key) {
-      const escaped = key.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+      const escaped = key.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
       setEvidenceOrigin({ kind: "selector", selector: `[data-evidence-origin="${escaped}"]` });
       return;
     }
@@ -782,7 +804,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       productType,
       period,
     }),
-    [carrierId, period, productType, region]
+    [carrierId, period, productType, region],
   );
 
   useEffect(() => {
@@ -791,8 +813,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
 
   const issueKey = useMemo(() => issues.map((i) => `${i.kind}:${i.value}`).join("|"), [issues]);
   const issueBannerText = useMemo(() => issueNote(issues), [issues]);
-  const issueBanner =
-    issueBannerText && issueKey.length > 0 && dismissedIssueKey !== issueKey ? issueBannerText : null;
+  const issueBanner = issueBannerText && issueKey.length > 0 && dismissedIssueKey !== issueKey ? issueBannerText : null;
 
   const banner = transientBanner ?? issueBanner;
   const dismissBanner = useCallback(() => {
@@ -811,25 +832,22 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     evidenceDelayReason?: string | null;
   };
 
-  const updateUrl = useCallback(
-    (next: UrlPatch, opts?: { mode?: "push" | "replace" }) => {
-      const base = stateRef.current;
-      const nextState = {
-        filters: { ...base.filters, ...(next.filters ?? {}) },
-        selectedCarrierId: next.selectedCarrierId === undefined ? base.selectedCarrierId : next.selectedCarrierId,
-        evidenceId: next.evidenceId === undefined ? base.evidenceId : next.evidenceId,
-        evidenceDimension: next.evidenceDimension === undefined ? base.evidenceDimension : next.evidenceDimension,
-        evidenceDelayReason: next.evidenceDelayReason === undefined ? base.evidenceDelayReason : next.evidenceDelayReason,
-      };
-      stateRef.current = nextState;
-      const query = buildDashboardQueryString(nextState);
-      const href = query.length > 0 ? `/${query}` : "/";
-      if (opts?.mode === "replace") window.history.replaceState({}, "", href);
-      else window.history.pushState({}, "", href);
-      setSearchString(new URLSearchParams(window.location.search).toString());
-    },
-    []
-  );
+  const updateUrl = useCallback((next: UrlPatch, opts?: { mode?: "push" | "replace" }) => {
+    const base = stateRef.current;
+    const nextState = {
+      filters: { ...base.filters, ...(next.filters ?? {}) },
+      selectedCarrierId: next.selectedCarrierId === undefined ? base.selectedCarrierId : next.selectedCarrierId,
+      evidenceId: next.evidenceId === undefined ? base.evidenceId : next.evidenceId,
+      evidenceDimension: next.evidenceDimension === undefined ? base.evidenceDimension : next.evidenceDimension,
+      evidenceDelayReason: next.evidenceDelayReason === undefined ? base.evidenceDelayReason : next.evidenceDelayReason,
+    };
+    stateRef.current = nextState;
+    const query = buildDashboardQueryString(nextState);
+    const href = query.length > 0 ? `/${query}` : "/";
+    if (opts?.mode === "replace") window.history.replaceState({}, "", href);
+    else window.history.pushState({}, "", href);
+    setSearchString(new URLSearchParams(window.location.search).toString());
+  }, []);
 
   const selectCarrier = useCallback(
     (
@@ -837,7 +855,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       opts?: {
         mode?: "push" | "replace";
         setCarrierFilter?: boolean;
-      }
+      },
     ) => {
       updateUrl(
         {
@@ -847,7 +865,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
           evidenceDimension: null,
           evidenceDelayReason: null,
         },
-        { mode: opts?.mode }
+        { mode: opts?.mode },
       );
 
       // Start the detail load immediately so selection state, URL state, and loading UI stay in sync.
@@ -863,13 +881,13 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       });
       setDetailState({ status: "loading", carrierId, requestKey });
     },
-    [updateUrl]
+    [updateUrl],
   );
 
   const clearSelection = useCallback(() => {
     updateUrl(
       { selectedCarrierId: null, evidenceId: null, evidenceDimension: null, evidenceDelayReason: null },
-      { mode: "replace" }
+      { mode: "replace" },
     );
   }, [updateUrl]);
 
@@ -882,7 +900,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
         evidenceDimension: null,
         evidenceDelayReason: null,
       },
-      { mode: "replace" }
+      { mode: "replace" },
     );
   }, [updateUrl]);
 
@@ -924,7 +942,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   const retryOptions = useCallback(() => {
     setOptionsState((prev) => {
       if (prev.status === "ready") return { status: "loading", previous: prev.data };
-      if (prev.status === "loading") return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
+      if (prev.status === "loading")
+        return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
       return { status: "loading" };
     });
     setOptionsReloadToken((prev) => prev + 1);
@@ -963,13 +982,16 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       startTransition(() => {
         setSummaryState((prev) => {
           if (prev.status === "ready") return { status: "loading", previous: prev.data };
-          if (prev.status === "loading") return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
+          if (prev.status === "loading")
+            return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
           return { status: "loading" };
         });
       });
 
       try {
-        const res = await fetch(`/api/scorecards/summary${buildFiltersQuery(stableFilters)}`, { signal: controller.signal });
+        const res = await fetch(`/api/scorecards/summary${buildFiltersQuery(stableFilters)}`, {
+          signal: controller.signal,
+        });
         const payload = (await res.json()) as ScorecardsSummaryModel | { ok: false; error?: { message?: string } };
 
         if (requestId !== summaryRequestSeq.current) return;
@@ -1055,7 +1077,13 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   // Fetch evidence when evidence state changes.
   const evidenceRequestSeq = useRef(0);
   useEffect(() => {
-    const mode = state.evidenceId ? "id" : state.evidenceDimension ? "dimension" : state.evidenceDelayReason ? "delayReason" : null;
+    const mode = state.evidenceId
+      ? "id"
+      : state.evidenceDimension
+        ? "dimension"
+        : state.evidenceDelayReason
+          ? "delayReason"
+          : null;
     if (!mode) return;
 
     const requestId = ++evidenceRequestSeq.current;
@@ -1072,7 +1100,9 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     async function run() {
       setEvidenceState({ status: "loading", requestKey });
       try {
-        const filterParams = new URLSearchParams(buildFiltersQuery({ ...stableFilters, carrierId: evidenceCarrierId }).slice(1));
+        const filterParams = new URLSearchParams(
+          buildFiltersQuery({ ...stableFilters, carrierId: evidenceCarrierId }).slice(1),
+        );
         if (mode === "id") filterParams.set("evidenceIds", state.evidenceId as string);
         if (mode === "dimension") filterParams.set("dimension", state.evidenceDimension as string);
         if (mode === "delayReason") filterParams.set("delayReason", state.evidenceDelayReason as string);
@@ -1123,14 +1153,22 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
       filters: { ...stableFilters, carrierId: null },
     });
     if (detailState.status === "loading" && detailState.requestKey === requestKey) return { status: "loading" };
-    if (detailState.status === "error" && detailState.requestKey === requestKey) return { status: "error", message: detailState.message };
-    if (detailState.status === "ready" && detailState.requestKey === requestKey) return { status: "ready", data: detailState.data };
+    if (detailState.status === "error" && detailState.requestKey === requestKey)
+      return { status: "error", message: detailState.message };
+    if (detailState.status === "ready" && detailState.requestKey === requestKey)
+      return { status: "ready", data: detailState.data };
     // Selection changed but the request state hasn't caught up yet: show loading instead of stale carrier detail.
     return { status: "loading" };
   }, [detailState, stableFilters, state.selectedCarrierId]);
 
   const effectiveEvidenceState = useMemo<LoadState<EvidenceReadModel>>(() => {
-    const mode = state.evidenceId ? "id" : state.evidenceDimension ? "dimension" : state.evidenceDelayReason ? "delayReason" : null;
+    const mode = state.evidenceId
+      ? "id"
+      : state.evidenceDimension
+        ? "dimension"
+        : state.evidenceDelayReason
+          ? "delayReason"
+          : null;
     if (!mode) return { status: "idle" };
     const requestKey = JSON.stringify({
       mode,
@@ -1161,7 +1199,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
     summaryState.status === "ready"
       ? summaryState.data
       : summaryState.status === "loading"
-        ? summaryState.previous ?? null
+        ? (summaryState.previous ?? null)
         : null;
 
   const carriersInScope = summary?.carriers ?? [];
@@ -1169,7 +1207,11 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   const scopeLabel = (() => {
     if (!summary) return "Scope is loading…";
     const f = summary.scope.filters;
-    const period = f.period ? `Period ${f.period}` : summary.scope.periodWindow.mode === "all" ? "All periods" : "Period";
+    const period = f.period
+      ? `Period ${f.period}`
+      : summary.scope.periodWindow.mode === "all"
+        ? "All periods"
+        : "Period";
     const region = f.region ? `Region ${f.region.toUpperCase()}` : "All regions";
     const product = f.productType ? `Product ${f.productType}` : "All products";
     return `${period} • ${region} • ${product}`;
@@ -1179,10 +1221,12 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
   const activePills = useMemo(() => {
     const carrierLabel =
       state.filters.carrierId && optionsModel?.ok
-        ? optionsModel.carriers.find((c) => c.id === state.filters.carrierId)?.shortCode ?? null
+        ? (optionsModel.carriers.find((c) => c.id === state.filters.carrierId)?.shortCode ?? null)
         : null;
     const periodLabel =
-      state.filters.period && optionsModel?.ok ? optionsModel.periods.find((p) => p.seedKey === state.filters.period)?.label ?? null : null;
+      state.filters.period && optionsModel?.ok
+        ? (optionsModel.periods.find((p) => p.seedKey === state.filters.period)?.label ?? null)
+        : null;
     return buildActiveFilterPills({ filters: state.filters, carrierLabel, periodLabel });
   }, [optionsModel, state.filters]);
 
@@ -1244,7 +1288,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
               <div>
                 <h2 className="text-sm font-semibold tracking-wide text-white">Scope controls</h2>
                 <p className="mt-1 text-sm leading-6 text-white/70">
-                  Filters compose by intersection. Use them to tighten the portfolio view without turning this into a ticket queue.
+                  Filters compose by intersection. Use them to tighten the portfolio view without turning this into a
+                  ticket queue.
                 </p>
                 <div className="mt-2 text-xs font-semibold tracking-wide text-white/60" aria-live="polite">
                   {isPending ? "Updating scope…" : scopeLabel}
@@ -1279,7 +1324,7 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                   <div>{banner}</div>
                   <button
                     type="button"
-                  onClick={dismissBanner}
+                    onClick={dismissBanner}
                     className="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/75 ring-1 ring-white/10 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     Dismiss
@@ -1301,10 +1346,14 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 <option value="">All carriers</option>
                 {state.filters.carrierId && optionsModel?.ok ? (
                   optionsModel.carriers.some((c) => c.id === state.filters.carrierId) ? null : (
-                    <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
+                    <option value={state.filters.carrierId}>
+                      Selected carrier ({state.filters.carrierId.slice(0, 8)}…)
+                    </option>
                   )
                 ) : state.filters.carrierId ? (
-                  <option value={state.filters.carrierId}>Selected carrier ({state.filters.carrierId.slice(0, 8)}…)</option>
+                  <option value={state.filters.carrierId}>
+                    Selected carrier ({state.filters.carrierId.slice(0, 8)}…)
+                  </option>
                 ) : null}
                 {optionsModel?.ok
                   ? optionsModel.carriers.map((c) => (
@@ -1333,7 +1382,9 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                 id="product-filter"
                 label="Product type"
                 value={state.filters.productType ?? ""}
-                onChange={(next) => updateUrl({ filters: { productType: next.length > 0 ? (next as ProductType) : null } })}
+                onChange={(next) =>
+                  updateUrl({ filters: { productType: next.length > 0 ? (next as ProductType) : null } })
+                }
               >
                 <option value="">All products</option>
                 {PRODUCT_TYPE_VALUES.map((p) => (
@@ -1437,8 +1488,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                   <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
                     <div className="text-sm font-semibold text-white">No results in this scope</div>
                     <div className="mt-2 text-sm leading-6 text-white/70">
-                      The selected filters remove all records. This is safe and expected in a fictional dataset. Broaden the
-                      scope to restore rankings and details.
+                      The selected filters remove all records. This is safe and expected in a fictional dataset. Broaden
+                      the scope to restore rankings and details.
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <button
@@ -1551,7 +1602,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                               </div>
                               {effectiveDetailState.data.scorecard.confidence.lowVolume ? (
                                 <div className="mt-1 text-xs text-white/60">
-                                  Limited sample size ({effectiveDetailState.data.scorecard.sampleCount}). Treat this as directional.
+                                  Limited sample size ({effectiveDetailState.data.scorecard.sampleCount}). Treat this as
+                                  directional.
                                 </div>
                               ) : null}
                             </div>
@@ -1587,7 +1639,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                       <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
                         <div className="text-sm font-semibold text-white">No records in this scope</div>
                         <div className="mt-2 text-sm leading-6 text-white/70">
-                          {effectiveDetailState.data.message ?? "This carrier has no records under the selected filters."}
+                          {effectiveDetailState.data.message ??
+                            "This carrier has no records under the selected filters."}
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                           <button
@@ -1610,7 +1663,8 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
                       <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
                         <div className="text-sm font-semibold text-white">Unknown carrier</div>
                         <div className="mt-2 text-sm leading-6 text-white/70">
-                          {effectiveDetailState.data.message ?? "This carrier id does not exist in the fictional dataset."}
+                          {effectiveDetailState.data.message ??
+                            "This carrier id does not exist in the fictional dataset."}
                         </div>
                         <div className="mt-4">
                           <button
@@ -1645,7 +1699,9 @@ export function ExecutiveDashboardInteractive(props: { initialSummary: Scorecard
         subtitle={evidenceRequestSubtitle()}
         origin={evidenceOrigin}
         state={effectiveEvidenceState}
-        onClose={() => updateUrl({ evidenceId: null, evidenceDimension: null, evidenceDelayReason: null }, { mode: "replace" })}
+        onClose={() =>
+          updateUrl({ evidenceId: null, evidenceDimension: null, evidenceDelayReason: null }, { mode: "replace" })
+        }
       />
     </div>
   );

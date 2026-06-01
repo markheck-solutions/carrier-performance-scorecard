@@ -7,10 +7,7 @@ import { readCarrierDetail } from "@/lib/scoring/read-models";
 
 export const runtime = "nodejs";
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ carrierId: string }> }
-) {
+export async function GET(request: NextRequest, context: { params: Promise<{ carrierId: string }> }) {
   try {
     const { carrierId } = await context.params;
     const url = new URL(request.url);
@@ -23,40 +20,28 @@ export async function GET(
     if (isInvalidFilterError(error)) {
       return NextResponse.json(
         { ok: false, error: { code: error.code, message: error.message, details: error.details } },
-        { status: error.status }
+        { status: error.status },
       );
     }
     return NextResponse.json(
       { ok: false, error: { message: "Unable to compute carrier scorecard right now." } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export function POST() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PUT() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PATCH() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function DELETE() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }

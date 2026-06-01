@@ -39,11 +39,11 @@ export async function ensureDemoSchema(db: DemoDb) {
         region_focus text not null,
         created_at timestamptz not null default now(),
         constraint carriers_relationship_tier_check check (relationship_tier in ${sqlQuotedList(
-          RELATIONSHIP_TIER_VALUES
+          RELATIONSHIP_TIER_VALUES,
         )}),
         constraint carriers_region_focus_check check (region_focus in ${sqlQuotedList(REGION_VALUES)})
       );
-    `)
+    `),
   );
 
   await db.execute(sql`create unique index if not exists carriers_seed_key_unique on carriers (seed_key);`);
@@ -60,7 +60,7 @@ export async function ensureDemoSchema(db: DemoDb) {
         created_at timestamptz not null default now(),
         constraint periods_date_order_check check (end_date >= start_date)
       );
-    `)
+    `),
   );
 
   await db.execute(sql`create unique index if not exists periods_seed_key_unique on periods (seed_key);`);
@@ -89,15 +89,11 @@ export async function ensureDemoSchema(db: DemoDb) {
         customer_impact text not null,
         created_at timestamptz not null default now(),
         constraint delivery_records_region_check check (region in ${sqlQuotedList(REGION_VALUES)}),
-        constraint delivery_records_product_type_check check (product_type in ${sqlQuotedList(
-          PRODUCT_TYPE_VALUES
-        )}),
+        constraint delivery_records_product_type_check check (product_type in ${sqlQuotedList(PRODUCT_TYPE_VALUES)}),
         constraint delivery_records_stage_check check (stage in ${sqlQuotedList(DELIVERY_STAGE_VALUES)}),
-        constraint delivery_records_delay_reason_check check (delay_reason in ${sqlQuotedList(
-          DELAY_REASON_VALUES
-        )}),
+        constraint delivery_records_delay_reason_check check (delay_reason in ${sqlQuotedList(DELAY_REASON_VALUES)}),
         constraint delivery_records_customer_impact_check check (customer_impact in ${sqlQuotedList(
-          CUSTOMER_IMPACT_VALUES
+          CUSTOMER_IMPACT_VALUES,
         )}),
         constraint delivery_records_delay_days_nonneg check (delay_days >= 0),
         constraint delivery_records_responsiveness_nonneg check (responsiveness_hours >= 0),
@@ -110,11 +106,11 @@ export async function ensureDemoSchema(db: DemoDb) {
           (delay_reason = 'none' and delay_days = 0) or (delay_reason <> 'none' and delay_days >= 0)
         )
       );
-    `)
+    `),
   );
 
   await db.execute(
-    sql`create unique index if not exists delivery_records_seed_key_unique on delivery_records (seed_key);`
+    sql`create unique index if not exists delivery_records_seed_key_unique on delivery_records (seed_key);`,
   );
 
   await db.execute(
@@ -129,7 +125,7 @@ export async function ensureDemoSchema(db: DemoDb) {
         summary text not null,
         created_at timestamptz not null default now()
       );
-    `)
+    `),
   );
 
   await db.execute(sql`create unique index if not exists evidence_items_seed_key_unique on evidence_items (seed_key);`);

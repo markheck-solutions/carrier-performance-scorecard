@@ -108,59 +108,53 @@ export async function POST(request: NextRequest) {
     if (error instanceof QbrInvalidRequestError) {
       return NextResponse.json(
         { ok: false, error: { code: error.code, message: error.message } } satisfies QbrBriefResponse,
-        { status: error.status }
+        { status: error.status },
       );
     }
     if (isQbrInvalidCarrierError(error)) {
       return NextResponse.json(
         { ok: false, error: { code: error.code, message: error.message } } satisfies QbrBriefResponse,
-        { status: error.status }
+        { status: error.status },
       );
     }
     if (isInvalidFilterError(error)) {
       return NextResponse.json(
         { ok: false, error: { code: error.code, message: error.message } } satisfies QbrBriefResponse,
-        { status: error.status }
+        { status: error.status },
       );
     }
     if (isLocalProviderNotConfiguredError(error)) {
       return NextResponse.json(
-        { ok: false, error: { code: error.code, message: "Local AI provider is not configured." } } satisfies QbrBriefResponse,
-        { status: error.status }
+        {
+          ok: false,
+          error: { code: error.code, message: "Local AI provider is not configured." },
+        } satisfies QbrBriefResponse,
+        { status: error.status },
       );
     }
 
     return NextResponse.json(
-      { ok: false, error: { code: "SERVER_ERROR", message: "Unable to generate QBR brief right now." } } satisfies QbrBriefResponse,
-      { status: 500 }
+      {
+        ok: false,
+        error: { code: "SERVER_ERROR", message: "Unable to generate QBR brief right now." },
+      } satisfies QbrBriefResponse,
+      { status: 500 },
     );
   }
 }
 
 export function GET() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PUT() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PATCH() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function DELETE() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }

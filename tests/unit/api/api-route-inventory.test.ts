@@ -31,7 +31,10 @@ function createTestDb() {
 async function seed(db: ReturnType<typeof createTestDb>["db"]) {
   await ensureDemoSchema(db);
   const dataset = buildDemoDataset();
-  const result = await seedDemoData(db, dataset, { expectedDatasetId: DEMO_DATASET_ID, allowlistToken: DEMO_DATASET_ID });
+  const result = await seedDemoData(db, dataset, {
+    expectedDatasetId: DEMO_DATASET_ID,
+    allowlistToken: DEMO_DATASET_ID,
+  });
   return { dataset, fingerprint: result.fingerprint };
 }
 
@@ -50,7 +53,9 @@ function expectMethodNotAllowed(response: Response) {
   expect(response.status).toBe(405);
   return response.json().then((payload) => {
     expect(payload).toEqual(expect.objectContaining({ ok: false }));
-    expect(safeJsonString(payload)).not.toMatch(/stack|select \*|drizzle|postgres:\/\/|DATABASE_URL|OPENAI_COMPATIBLE/i);
+    expect(safeJsonString(payload)).not.toMatch(
+      /stack|select \*|drizzle|postgres:\/\/|DATABASE_URL|OPENAI_COMPATIBLE/i,
+    );
   });
 }
 
@@ -85,9 +90,7 @@ describe("API route inventory and safety (VAL-SAFE-001, VAL-SAFE-004, VAL-SAFE-0
 
     const discovered: string[] = [];
     walk(apiRoot, discovered);
-    const relative = discovered
-      .map((p) => path.relative(process.cwd(), p).replaceAll("\\", "/"))
-      .sort();
+    const relative = discovered.map((p) => path.relative(process.cwd(), p).replaceAll("\\", "/")).sort();
 
     expect(relative).toEqual(
       [
@@ -98,7 +101,7 @@ describe("API route inventory and safety (VAL-SAFE-001, VAL-SAFE-004, VAL-SAFE-0
         "src/app/api/qbr/brief/route.ts",
         "src/app/api/scorecards/options/route.ts",
         "src/app/api/scorecards/summary/route.ts",
-      ].sort()
+      ].sort(),
     );
   });
 
@@ -243,7 +246,7 @@ describe("API route inventory and safety (VAL-SAFE-001, VAL-SAFE-004, VAL-SAFE-0
     const carrierId = "00000000-0000-4000-8000-000000000000";
     const res = await carrierScorecardRoute.GET(
       new NextRequest(`http://example.test/api/carriers/${carrierId}/scorecard`),
-      { params: Promise.resolve({ carrierId }) }
+      { params: Promise.resolve({ carrierId }) },
     );
     expect(res.status).toBe(200);
     const payload = await res.json();

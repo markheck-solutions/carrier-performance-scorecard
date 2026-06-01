@@ -20,7 +20,8 @@ export default function ErrorPage(props: { error: Error & { digest?: string }; u
 
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-white">Something went wrong</h1>
           <p className="mt-2 text-sm leading-6 text-white/70">
-            The scorecard is temporarily unavailable. This demo does not expose internal error details or sensitive configuration.
+            The scorecard is temporarily unavailable. This demo does not expose internal error details or sensitive
+            configuration.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">

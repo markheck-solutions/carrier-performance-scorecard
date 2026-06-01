@@ -52,7 +52,7 @@ describe("invalid scoring filters never broaden scope", () => {
     await seed(db);
 
     await expect(
-      readScorecardsSummary(db, { carrierId: null, region: null, productType: null, period: "2099-01" })
+      readScorecardsSummary(db, { carrierId: null, region: null, productType: null, period: "2099-01" }),
     ).rejects.toBeInstanceOf(InvalidFilterError);
   });
 
@@ -61,7 +61,12 @@ describe("invalid scoring filters never broaden scope", () => {
     await seed(db);
 
     await expect(
-      readScorecardsSummary(db, { carrierId: null, region: "moon" as unknown as Region, productType: null, period: null })
+      readScorecardsSummary(db, {
+        carrierId: null,
+        region: "moon" as unknown as Region,
+        productType: null,
+        period: null,
+      }),
     ).rejects.toBeInstanceOf(InvalidFilterError);
   });
 
@@ -80,7 +85,7 @@ describe("invalid scoring filters never broaden scope", () => {
         error: expect.objectContaining({
           code: "INVALID_FILTER",
         }),
-      })
+      }),
     );
   });
 
@@ -92,7 +97,7 @@ describe("invalid scoring filters never broaden scope", () => {
     const carrierId = dataset.carriers[0]!.id;
     const response = await getCarrierScorecard(
       new NextRequest(`http://example.test/api/carriers/${carrierId}/scorecard?productType=satellite`),
-      { params: Promise.resolve({ carrierId }) }
+      { params: Promise.resolve({ carrierId }) },
     );
 
     expect(response.status).toBe(400);
@@ -133,7 +138,14 @@ describe("invalid scoring filters never broaden scope", () => {
     await seed(db);
 
     await expect(
-      readEvidence(db, { carrierId: null, region: null, productType: null, period: "2099-01", dimension: null, evidenceIds: null })
+      readEvidence(db, {
+        carrierId: null,
+        region: null,
+        productType: null,
+        period: "2099-01",
+        dimension: null,
+        evidenceIds: null,
+      }),
     ).rejects.toBeInstanceOf(InvalidFilterError);
   });
 });

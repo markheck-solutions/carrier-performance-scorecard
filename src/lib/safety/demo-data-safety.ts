@@ -32,8 +32,7 @@ const RULES: PatternRule[] = [
   {
     kind: "phone",
     message: "Phone-number-like string detected",
-    regex:
-      /\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/,
+    regex: /\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/,
   },
   {
     kind: "street_address",
@@ -70,14 +69,12 @@ const RULES: PatternRule[] = [
   {
     kind: "env_var_name",
     message: "Environment-variable-like name detected",
-    regex:
-      /\b(?:DATABASE_URL|OPENAI_COMPATIBLE_(?:BASE_URL|API_KEY|MODEL)|AI_PROVIDER|NEXT_PUBLIC_DEMO_MODE)\b/,
+    regex: /\b(?:DATABASE_URL|OPENAI_COMPATIBLE_(?:BASE_URL|API_KEY|MODEL)|AI_PROVIDER|NEXT_PUBLIC_DEMO_MODE)\b/,
   },
   {
     kind: "real_world_carrier_name",
     message: "Real-world carrier name detected",
-    regex:
-      /\b(?:verizon|at&t|t-mobile|tmobile|vodafone|telefonica|telstra|comcast|charter|bt\s+group)\b/i,
+    regex: /\b(?:verizon|at&t|t-mobile|tmobile|vodafone|telefonica|telstra|comcast|charter|bt\s+group)\b/i,
   },
   {
     kind: "private_gateway_marker",
@@ -137,7 +134,5 @@ export function assertDemoSafe(value: unknown) {
     .map((f) => `- [${f.kind}] ${f.message}: "${f.sample}"`)
     .join("\n");
 
-  throw new Error(
-    `Demo-data safety scan failed with ${unique.size} finding(s).\n${rendered}`
-  );
+  throw new Error(`Demo-data safety scan failed with ${unique.size} finding(s).\n${rendered}`);
 }

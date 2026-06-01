@@ -67,7 +67,10 @@ function buildDataNotice(context: QbrSafeContextV1) {
   ].join(", ");
 
   if (context.records.deliveryRecords === 0 || context.records.sampleCount === 0) {
-    return { kind: "limited_data" as const, message: `No delivery records are available for ${carrierTag} in this scope (${scopeLabel}).` };
+    return {
+      kind: "limited_data" as const,
+      message: `No delivery records are available for ${carrierTag} in this scope (${scopeLabel}).`,
+    };
   }
   if (context.records.lowVolume) {
     return {

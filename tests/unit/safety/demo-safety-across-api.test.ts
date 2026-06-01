@@ -29,7 +29,10 @@ function createTestDb() {
 async function seed(db: ReturnType<typeof createTestDb>["db"]) {
   await ensureDemoSchema(db);
   const dataset = buildDemoDataset();
-  const seeded = await seedDemoData(db, dataset, { expectedDatasetId: DEMO_DATASET_ID, allowlistToken: DEMO_DATASET_ID });
+  const seeded = await seedDemoData(db, dataset, {
+    expectedDatasetId: DEMO_DATASET_ID,
+    allowlistToken: DEMO_DATASET_ID,
+  });
   return { dataset, fingerprint: seeded.fingerprint };
 }
 
@@ -74,7 +77,7 @@ describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003, VA
     const carrierDetail = await (
       await getCarrierScorecard(
         new NextRequest(`http://example.test/api/carriers/${carrierId}/scorecard?region=emea&period=2026-05`),
-        { params: Promise.resolve({ carrierId }) }
+        { params: Promise.resolve({ carrierId }) },
       )
     ).json();
 
@@ -88,7 +91,7 @@ describe("demo safety holds across API surfaces (VAL-SAFE-010, VAL-CROSS-003, VA
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ carrierId }),
-        })
+        }),
       )
     ).json();
 

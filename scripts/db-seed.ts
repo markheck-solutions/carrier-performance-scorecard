@@ -42,8 +42,8 @@ async function main() {
           fingerprint: result.fingerprint,
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   } finally {
     await sql.end({ timeout: 5 });

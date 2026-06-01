@@ -25,7 +25,7 @@ describe("dashboard state URL parsing", () => {
       expect.arrayContaining([
         { kind: "invalid_region", value: "moon" },
         { kind: "invalid_productType", value: "satellite" },
-      ])
+      ]),
     );
   });
 
@@ -38,11 +38,7 @@ describe("dashboard state URL parsing", () => {
     expect(state.filters.carrierId).toBeNull();
     // Selection is allowed to reference unknown carrier ids so the UI can show a not-found state safely.
     expect(state.selectedCarrierId).toBe("also-unknown");
-    expect(issues).toEqual(
-      expect.arrayContaining([
-        { kind: "invalid_carrierId", value: "unknown" },
-      ])
-    );
+    expect(issues).toEqual(expect.arrayContaining([{ kind: "invalid_carrierId", value: "unknown" }]));
   });
 
   it("sanitizes unsupported period values when an allowlist is provided", () => {
@@ -64,14 +60,20 @@ describe("dashboard state URL parsing", () => {
   });
 
   it("sanitizes conflicting evidence scope params deterministically", () => {
-    const params = new URLSearchParams("evidenceId=11111111-1111-1111-1111-111111111111&evidenceDimension=delay_severity&evidenceDelayReason=permit");
+    const params = new URLSearchParams(
+      "evidenceId=11111111-1111-1111-1111-111111111111&evidenceDimension=delay_severity&evidenceDelayReason=permit",
+    );
     const { state, issues } = parseDashboardStateFromSearchParams(params);
 
     // EvidenceId wins over dimension/delayReason.
     expect(state.evidenceId).toBe("11111111-1111-1111-1111-111111111111");
     expect(state.evidenceDimension).toBeNull();
     expect(state.evidenceDelayReason).toBeNull();
-    expect(issues).toEqual(expect.arrayContaining([{ kind: "conflicting_evidenceScope", value: "evidenceId+evidenceDimension+evidenceDelayReason" }]));
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        { kind: "conflicting_evidenceScope", value: "evidenceId+evidenceDimension+evidenceDelayReason" },
+      ]),
+    );
   });
 
   it("round-trips query building for non-null values", () => {

@@ -102,7 +102,7 @@ describe("server-only boundaries", () => {
           const source = readFileSync(f, "utf8");
           return SERVER_ONLY_DIRECTIVE_RE.test(source.slice(0, 500));
         })
-        .map((f) => path.normalize(f))
+        .map((f) => path.normalize(f)),
     );
 
     const protectedSeedDir = path.normalize(path.join(srcRoot, "lib", "seed")) + path.sep;
@@ -144,7 +144,7 @@ describe("server-only boundaries", () => {
           const source = readFileSync(f, "utf8");
           return SERVER_ONLY_DIRECTIVE_RE.test(source.slice(0, 500));
         })
-        .map((f) => path.normalize(f))
+        .map((f) => path.normalize(f)),
     );
 
     const protectedSeedDir = path.normalize(path.join(srcRoot, "lib", "seed")) + path.sep;

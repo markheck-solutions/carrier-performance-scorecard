@@ -109,7 +109,10 @@ function toSafeFilters(filters: ScoreFilters) {
   } satisfies ScoreFilters;
 }
 
-export async function buildQbrSafeContextV1(db: DemoDb, params: { carrierId: string; filters: ScoreFilters }): Promise<QbrSafeContextV1> {
+export async function buildQbrSafeContextV1(
+  db: DemoDb,
+  params: { carrierId: string; filters: ScoreFilters },
+): Promise<QbrSafeContextV1> {
   const carrierId = params.carrierId.trim();
   const filters = {
     carrierId,
@@ -164,8 +167,12 @@ export async function buildQbrSafeContextV1(db: DemoDb, params: { carrierId: str
   const trendAvailable = trendComp ? trendComp.dataQuality.availability === "ok" : false;
   const trendLabel = trendLabelForDelta(trendDelta, trendAvailable);
 
-  const concerns = stableSortComponents(scorecard, "asc").slice(0, 2).map((c) => c.id);
-  const strengths = stableSortComponents(scorecard, "desc").slice(0, 1).map((c) => c.id);
+  const concerns = stableSortComponents(scorecard, "asc")
+    .slice(0, 2)
+    .map((c) => c.id);
+  const strengths = stableSortComponents(scorecard, "desc")
+    .slice(0, 1)
+    .map((c) => c.id);
   const highlightDims: ScoringComponentId[] = Array.from(new Set([...concerns, ...strengths]));
 
   const highlights: QbrSafeContextV1["evidence"]["highlights"] = [];
@@ -248,12 +255,32 @@ function assertExactKeys(obj: Record<string, unknown>, allowed: readonly string[
 }
 
 export function assertQbrSafeContextWhitelisted(context: QbrSafeContextV1) {
-  assertExactKeys(context as unknown as Record<string, unknown>, ["kind", "carrier", "scope", "records", "score", "delays", "evidence"], "root");
-  assertExactKeys(context.carrier as unknown as Record<string, unknown>, ["id", "name", "shortCode", "relationshipTier", "regionFocus"], "carrier");
+  assertExactKeys(
+    context as unknown as Record<string, unknown>,
+    ["kind", "carrier", "scope", "records", "score", "delays", "evidence"],
+    "root",
+  );
+  assertExactKeys(
+    context.carrier as unknown as Record<string, unknown>,
+    ["id", "name", "shortCode", "relationshipTier", "regionFocus"],
+    "carrier",
+  );
   assertExactKeys(context.scope as unknown as Record<string, unknown>, ["filters", "periodWindow"], "scope");
-  assertExactKeys(context.scope.filters as unknown as Record<string, unknown>, ["carrierId", "region", "productType", "period"], "scope.filters");
-  assertExactKeys(context.records as unknown as Record<string, unknown>, ["deliveryRecords", "evidenceItems", "sampleCount", "lowVolume", "confidenceLabel"], "records");
-  assertExactKeys(context.score as unknown as Record<string, unknown>, ["totalScore", "grade", "trendLabel", "components"], "score");
+  assertExactKeys(
+    context.scope.filters as unknown as Record<string, unknown>,
+    ["carrierId", "region", "productType", "period"],
+    "scope.filters",
+  );
+  assertExactKeys(
+    context.records as unknown as Record<string, unknown>,
+    ["deliveryRecords", "evidenceItems", "sampleCount", "lowVolume", "confidenceLabel"],
+    "records",
+  );
+  assertExactKeys(
+    context.score as unknown as Record<string, unknown>,
+    ["totalScore", "grade", "trendLabel", "components"],
+    "score",
+  );
   assertExactKeys(context.delays as unknown as Record<string, unknown>, ["topDelayReasons"], "delays");
   assertExactKeys(context.evidence as unknown as Record<string, unknown>, ["highlights"], "evidence");
 }

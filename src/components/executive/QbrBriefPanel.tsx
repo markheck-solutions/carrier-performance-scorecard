@@ -87,9 +87,7 @@ export function QbrBriefPanel(props: {
           <h3 className="mt-1 text-base font-semibold text-white">Talking points for the selected scope</h3>
           <p className="mt-1 text-sm leading-6 text-white/70">
             {props.demoMode ? (
-              <>
-                Demo-safe mock AI generated from computed scores and evidence summaries. No external model calls.
-              </>
+              <>Demo-safe mock AI generated from computed scores and evidence summaries. No external model calls.</>
             ) : (
               <>Generated from computed scores and evidence summaries. Output is read-only.</>
             )}
@@ -136,7 +134,8 @@ export function QbrBriefPanel(props: {
         </div>
       ) : state.status === "idle" ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70">
-          Click Generate brief to produce strengths, concerns, questions, and governance actions for the selected carrier.
+          Click Generate brief to produce strengths, concerns, questions, and governance actions for the selected
+          carrier.
         </div>
       ) : state.status === "loading" ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70" aria-busy="true">
@@ -150,7 +149,10 @@ export function QbrBriefPanel(props: {
         state.data.ok ? (
           <div className="mt-4 space-y-3" data-testid="qbr-brief">
             {state.data.dataNotice ? (
-              <div className="rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70" data-testid="qbr-data-notice">
+              <div
+                className="rounded-xl border border-white/10 bg-black/35 p-4 text-sm text-white/70"
+                data-testid="qbr-data-notice"
+              >
                 {state.data.dataNotice.message}
               </div>
             ) : null}

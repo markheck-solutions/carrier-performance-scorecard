@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "eslint.config.mjs",
+    "next.config.ts",
+    "playwright.config.ts",
+    "postcss.config.mjs",
+    "scripts/**/*.ts",
+    "src/app/**/*.{ts,tsx}",
+    "tests/**/*.test.{ts,tsx}",
+    "tests/**/*.spec.{ts,tsx}",
+    "vitest.config.ts"
+  ],
+  "project": ["*.config.{js,mjs,ts}", "scripts/**/*.ts", "src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+  "ignore": [
+    ".next/**",
+    "coverage/**",
+    "next-env.d.ts",
+    "playwright-report/**",
+    "test-results/**",
+    "tsconfig.tsbuildinfo"
+  ],
+  "ignoreDependencies": ["@tailwindcss/postcss", "postcss", "server-only", "tailwindcss"],
+  "next": true,
+  "playwright": true,
+  "vitest": true
+}

@@ -34,35 +34,23 @@ export async function GET() {
   } catch {
     return NextResponse.json(
       { ok: false as const, error: { message: "Unable to load filter options right now." } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export function POST() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PUT() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function PATCH() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
 
 export function DELETE() {
-  return NextResponse.json(
-    { ok: false, error: { message: "Method not allowed." } },
-    { status: 405 }
-  );
+  return NextResponse.json({ ok: false, error: { message: "Method not allowed." } }, { status: 405 });
 }
