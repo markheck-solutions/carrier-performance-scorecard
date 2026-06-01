@@ -52,7 +52,7 @@ jobs:
             await core.summary.addHeading("Release Notes").addRaw(body).write();
 
       - name: Upload release notes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: release-artifacts/release-notes.md
