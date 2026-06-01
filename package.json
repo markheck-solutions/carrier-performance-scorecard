@@ -30,7 +30,8 @@
     "test:performance": "tsx scripts/quality/test-performance-check.ts",
     "release-notes:check": "tsx scripts/quality/release-notes-check.ts",
     "dependency-age:check": "tsx scripts/quality/dependency-age-policy-check.ts",
-    "quality:check": "npm run format:check && npm run deadcode:check && npm run duplicates:check && npm run large-files:check && npm run debt:check && npm run agents:verify && npm run naming:check && npm run complexity:check && npm run queries:check && npm run bundle:check && npm run build:performance && npm run test:performance && npm run release-notes:check && npm run dependency-age:check && npm run readme:verify && npm run safety",
+    "stale-flags:check": "tsx scripts/quality/stale-feature-flag-check.ts",
+    "quality:check": "npm run format:check && npm run deadcode:check && npm run duplicates:check && npm run large-files:check && npm run debt:check && npm run agents:verify && npm run naming:check && npm run complexity:check && npm run queries:check && npm run bundle:check && npm run build:performance && npm run test:performance && npm run release-notes:check && npm run dependency-age:check && npm run stale-flags:check && npm run readme:verify && npm run safety",
     "prepare": "husky"
   },
   "dependencies": {

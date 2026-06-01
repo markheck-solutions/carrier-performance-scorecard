@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { isFeatureEnabled, listFeatureFlags, resolveFeatureFlags } from "@/lib/flags/feature-flags";
+import {
+  FEATURE_FLAG_LIFECYCLE,
+  isFeatureEnabled,
+  listFeatureFlags,
+  resolveFeatureFlags,
+} from "@/lib/flags/feature-flags";
 
 describe("feature flag evaluator", () => {
   it("keeps demo mode and mock QBR enabled by default", () => {
@@ -34,5 +39,19 @@ describe("feature flag evaluator", () => {
 
     expect(isFeatureEnabled("metricsEndpoint", source)).toBe(false);
     expect(listFeatureFlags(source)).toContainEqual({ name: "metricsEndpoint", enabled: false });
+  });
+
+  it("keeps lifecycle metadata for stale flag cleanup", () => {
+    expect(Object.keys(FEATURE_FLAG_LIFECYCLE).sort()).toEqual(
+      listFeatureFlags({})
+        .map((flag) => flag.name)
+        .sort(),
+    );
+
+    for (const lifecycle of Object.values(FEATURE_FLAG_LIFECYCLE)) {
+      expect(lifecycle.owner).toBeTruthy();
+      expect(lifecycle.reviewBy).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(lifecycle.cleanupWhen).toBeTruthy();
+    }
   });
 });
