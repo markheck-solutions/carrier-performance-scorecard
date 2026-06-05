@@ -27,12 +27,12 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -57,7 +57,7 @@ jobs:
 
       - name: Resolve release metadata
         id: metadata
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pkg = require("./package.json");
@@ -73,7 +73,7 @@ jobs:
 
       - name: Create GitHub release
         if: ${{ !inputs.dry_run }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           TAG_NAME: ${{ steps.metadata.outputs.tag_name }}
         with:
