@@ -29,7 +29,7 @@ jobs:
         env:
           FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
         run: |
-          if [ -n "${FACTORY_API_KEY:-}" ]; then
+          if [[ -n "${FACTORY_API_KEY:-}" && "${FACTORY_API_KEY}" == fk-* ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -39,9 +39,9 @@ jobs:
           cat > qa-results/report.md <<'EOF'
           ## QA Report
 
-          Functional QA skipped because FACTORY_API_KEY is not available to this workflow run. Configure it as a repository or Dependabot secret to enable Droid QA.
+          Functional QA skipped because FACTORY_API_KEY is not available or is not a Factory API key for this workflow run. Configure it as a repository or Dependabot secret to enable Droid QA.
           EOF
-          printf '%s\n' 'Functional QA skipped because FACTORY_API_KEY is unavailable.' > qa-output.txt
+          printf '%s\n' 'Functional QA skipped because FACTORY_API_KEY is unavailable or invalid.' > qa-output.txt
 
       - name: Install ImageMagick
         if: ${{ steps.qa_credentials.outputs.available == 'true' }}
