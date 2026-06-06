@@ -11,6 +11,7 @@ import {
 
 describe("Sentry contextualization", () => {
   it("redacts sensitive event data before Sentry receives it", () => {
+    const rawBearerLog = ["Bearer", "token-value-should-not-leak"].join(" ");
     const event = applyPrivacyToSentryEvent({
       extra: {
         carrierId: "demo-carrier",
@@ -24,6 +25,13 @@ describe("Sentry contextualization", () => {
       user: {
         id: "anon-safe",
         email: "person@example.com",
+      },
+      message: "Provider timeout for person@example.com",
+      exception: {
+        values: [{ type: "Error", value: "Provider timeout for person@example.com" }],
+      },
+      logentry: {
+        message: rawBearerLog,
       },
     });
 
@@ -39,6 +47,13 @@ describe("Sentry contextualization", () => {
     expect(event.user).toMatchObject({
       id: "anon-safe",
       email: "[redacted]",
+    });
+    expect(event.message).toBe("Provider timeout for [redacted]");
+    expect(event.exception).toMatchObject({
+      values: [{ type: "Error", value: "Provider timeout for [redacted]" }],
+    });
+    expect(event.logentry).toMatchObject({
+      message: "[redacted]",
     });
   });
 

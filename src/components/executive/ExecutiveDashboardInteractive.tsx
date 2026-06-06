@@ -1079,7 +1079,8 @@ export function ExecutiveDashboardInteractive(props: {
       setDetailState({ status: "loading", carrierId: requestCarrierId, requestKey });
       try {
         const scoped = buildFiltersQuery({ ...stableFilters, carrierId: null });
-        const res = await fetch(`/api/carriers/${requestCarrierId}/scorecard${scoped}`, {
+        const carrierPathSegment = encodeURIComponent(requestCarrierId);
+        const res = await fetch(`/api/carriers/${carrierPathSegment}/scorecard${scoped}`, {
           headers: sentryRequestHeaders(),
           signal: controller.signal,
         });

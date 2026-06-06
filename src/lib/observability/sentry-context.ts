@@ -13,11 +13,14 @@ export type SentryBreadcrumbInput = {
 };
 
 type SentryEventLike = {
+  message?: unknown;
   extra?: unknown;
   contexts?: unknown;
   tags?: unknown;
   user?: unknown;
   request?: unknown;
+  exception?: unknown;
+  logentry?: unknown;
   breadcrumbs?: unknown;
 };
 
@@ -90,11 +93,14 @@ export function sanitizeForSentry(value: unknown): unknown {
 export function applyPrivacyToSentryEvent<T extends SentryEventLike>(event: T): T {
   return {
     ...event,
+    message: typeof event.message === "string" ? sanitizeString(event.message) : event.message,
     extra: sanitizeUnknown(event.extra ?? {}) as Record<string, unknown>,
     contexts: sanitizeUnknown(event.contexts ?? {}) as Record<string, unknown>,
     tags: sanitizeUnknown(event.tags ?? {}) as Record<string, unknown>,
     user: sanitizeUnknown(event.user ?? {}) as Record<string, unknown>,
     request: sanitizeUnknown(event.request ?? {}) as Record<string, unknown>,
+    exception: sanitizeUnknown(event.exception ?? {}) as Record<string, unknown>,
+    logentry: sanitizeUnknown(event.logentry ?? {}) as Record<string, unknown>,
     breadcrumbs: Array.isArray(event.breadcrumbs)
       ? (sanitizeUnknown(event.breadcrumbs) as Array<Record<string, unknown>>)
       : event.breadcrumbs,
