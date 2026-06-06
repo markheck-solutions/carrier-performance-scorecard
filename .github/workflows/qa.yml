@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Detect QA credentials
-        id: qa-credentials
+        id: qa_credentials
         env:
           FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
         run: |
@@ -44,30 +44,30 @@ jobs:
           printf '%s\n' 'Functional QA skipped because FACTORY_API_KEY is unavailable.' > qa-output.txt
 
       - name: Install ImageMagick
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: steps.qa_credentials.outputs.available == 'true'
         run: sudo apt-get update && sudo apt-get install -y -qq imagemagick
 
       - name: Setup Node
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: steps.qa_credentials.outputs.available == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: steps.qa_credentials.outputs.available == 'true'
         run: npm ci
 
       - name: Install Playwright Chromium
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: steps.qa_credentials.outputs.available == 'true'
         run: npx playwright install chromium --with-deps
 
       - name: Install Factory Droid
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: steps.qa_credentials.outputs.available == 'true'
         run: curl -fsSL https://app.factory.ai/cli | sh
 
       - name: Run QA skill
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: steps.qa_credentials.outputs.available == 'true'
         id: qa
         continue-on-error: true
         timeout-minutes: 18
@@ -131,5 +131,5 @@ jobs:
           fi
 
       - name: Fail if QA failed
-        if: steps.qa-credentials.outputs.available == 'true' && steps.qa.outcome == 'failure'
+        if: steps.qa_credentials.outputs.available == 'true' && steps.qa.outcome == 'failure'
         run: exit 1
