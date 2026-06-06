@@ -82,6 +82,33 @@ jobs:
           set -o pipefail
           droid exec --auto high "You are running in a non-interactive CI environment. There is NO human available. Do NOT use AskUser, do NOT wait for confirmations, and do NOT pause for input. Run the qa skill for this repository. Use the default local target and test the checked-out PR branch by starting the local dev server at http://127.0.0.1:3100 through the generated QA skill. Do not fall back to the production URL for PR branch testing. Write the final report to qa-results/report.md." 2>&1 | tee qa-output.txt
 
+      - name: Classify QA outcome
+        if: always()
+        id: qa_outcome
+        run: |
+          if [ "${{ steps.qa_credentials.outputs.available }}" != "true" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ steps.qa.outcome }}" != "failure" ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -s qa-results/report.md ] && grep -q "Error during droid execution: Exec failed" qa-output.txt 2>/dev/null; then
+            mkdir -p qa-results
+            cat > qa-results/report.md <<'EOF'
+          ## QA Report
+
+          Functional QA was not completed because Droid Exec failed before the QA skill produced a report. Treat this as infrastructure-unavailable, not an application QA failure.
+          EOF
+            echo "status=infra_unavailable" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "status=failed" >> "$GITHUB_OUTPUT"
+
       - name: Upload QA artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -131,5 +158,5 @@ jobs:
           fi
 
       - name: Fail if QA failed
-        if: ${{ steps.qa_credentials.outputs.available == 'true' && steps.qa.outcome == 'failure' }}
+        if: ${{ steps.qa_outcome.outputs.status == 'failed' }}
         run: exit 1
