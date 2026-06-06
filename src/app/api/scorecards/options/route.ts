@@ -3,10 +3,11 @@ import { asc } from "drizzle-orm";
 
 import { getServerDb } from "@/lib/db/server-db";
 import { schema } from "@/lib/db/schema";
+import { captureServerError } from "@/lib/observability/sentry-server";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
     const { db } = getServerDb();
 
@@ -31,7 +32,8 @@ export async function GET() {
         endDate: p.endDate,
       })),
     });
-  } catch {
+  } catch (error: unknown) {
+    captureServerError(error, { operation: "read-scorecard-options", route: "/api/scorecards/options", request });
     return NextResponse.json(
       { ok: false as const, error: { message: "Unable to load filter options right now." } },
       { status: 500 },

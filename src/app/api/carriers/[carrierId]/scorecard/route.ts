@@ -4,6 +4,7 @@ import { getServerDb } from "@/lib/db/server-db";
 import { parseScoreFiltersFromUrl } from "@/lib/scoring/filter-parse";
 import { isInvalidFilterError } from "@/lib/scoring/invalid-filter";
 import { readCarrierDetail } from "@/lib/scoring/read-models";
+import { captureServerError } from "@/lib/observability/sentry-server";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ car
         { status: error.status },
       );
     }
+    captureServerError(error, {
+      operation: "read-carrier-scorecard",
+      route: "/api/carriers/[carrierId]/scorecard",
+      request,
+    });
     return NextResponse.json(
       { ok: false, error: { message: "Unable to compute carrier scorecard right now." } },
       { status: 500 },

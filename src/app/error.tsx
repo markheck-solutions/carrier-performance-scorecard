@@ -2,10 +2,15 @@
 
 import { useEffect } from "react";
 
+import { captureClientError } from "@/lib/observability/sentry-client";
+
 export default function ErrorPage(props: { error: Error & { digest?: string }; unstable_retry: () => void }) {
   useEffect(() => {
-    // Intentionally avoid rendering error details. Logging is dev-only signal.
-    console.error(props.error);
+    captureClientError(props.error, {
+      operation: "app-error-boundary",
+      route: "/",
+      context: { digest: props.error.digest ?? null },
+    });
   }, [props.error]);
 
   return (

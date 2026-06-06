@@ -9,6 +9,7 @@ import { buildQbrSafeContextV1, isQbrInvalidCarrierError } from "@/lib/qbr/conte
 import { generateQbrBrief } from "@/lib/qbr/generate";
 import type { QbrBriefResponse } from "@/lib/qbr/public";
 import { isLocalProviderNotConfiguredError } from "@/lib/qbr/local-provider";
+import { captureServerError } from "@/lib/observability/sentry-server";
 
 export const runtime = "nodejs";
 
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    captureServerError(error, { operation: "generate-qbr-brief", route: "/api/qbr/brief", request });
     return NextResponse.json(
       {
         ok: false,

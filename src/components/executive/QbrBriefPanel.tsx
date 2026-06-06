@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { QbrBriefRequestBody, QbrBriefResponse } from "@/lib/qbr/public";
 import type { ScoreFilters } from "@/lib/scoring/types";
+import { addSentryBreadcrumb, sentryRequestHeaders } from "@/lib/observability/sentry-client";
 
 type LoadState =
   | { status: "idle" }
@@ -56,10 +57,23 @@ export function QbrBriefPanel(props: {
       variant,
     };
 
+    addSentryBreadcrumb({
+      category: "qbr.brief",
+      message: "QBR brief generation requested",
+      type: "user",
+      data: {
+        carrierShortCode: props.carrier.shortCode,
+        region: props.filters.region,
+        productType: props.filters.productType,
+        hasPeriod: Boolean(props.filters.period),
+        variant,
+      },
+    });
+
     try {
       const res = await fetch("/api/qbr/brief", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...sentryRequestHeaders() },
         body: JSON.stringify(body),
       });
 
@@ -67,12 +81,32 @@ export function QbrBriefPanel(props: {
       if (requestId !== requestSeq.current) return;
       if (!res.ok || !payload.ok) {
         const message = !payload.ok ? payload.error.message : "Unable to generate QBR brief right now.";
+        addSentryBreadcrumb({
+          category: "qbr.brief",
+          message: "QBR brief generation failed",
+          level: "warning",
+          type: "http",
+          data: { status: res.status, carrierShortCode: props.carrier.shortCode },
+        });
         setState({ status: "error", requestKey, message });
         return;
       }
+      addSentryBreadcrumb({
+        category: "qbr.brief",
+        message: "QBR brief generation succeeded",
+        type: "http",
+        data: { carrierShortCode: props.carrier.shortCode, provider: payload.provider.id },
+      });
       setState({ status: "ready", requestKey, data: payload });
-    } catch {
+    } catch (error: unknown) {
       if (requestId !== requestSeq.current) return;
+      addSentryBreadcrumb({
+        category: "qbr.brief",
+        message: "QBR brief generation threw",
+        level: "error",
+        type: "http",
+        data: { errorName: (error as { name?: string }).name ?? "unknown", carrierShortCode: props.carrier.shortCode },
+      });
       setState({ status: "error", requestKey, message: "Unable to generate QBR brief right now." });
     }
   }, [props.carrier, props.filters, variant]);

@@ -32,6 +32,8 @@ const SENSITIVE_VALUE_PATTERNS = [
   /\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?):\/\/[^\s"'`]+/gi,
   /\bBearer\s+[A-Za-z0-9._-]{12,}\b/gi,
   /\bsk-[A-Za-z0-9_-]{12,}\b/gi,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+  /\bhttps?:\/\/[^/\s"'`]+@[^/\s"'`]+/gi,
 ];
 
 function redactString(value: string): string {
