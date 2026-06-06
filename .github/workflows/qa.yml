@@ -25,11 +25,11 @@ jobs:
           fetch-depth: 0
 
       - name: Detect QA credentials
-        id: qa-credentials
+        id: qa_credentials
         env:
           FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
         run: |
-          if [ -n "${FACTORY_API_KEY:-}" ]; then
+          if [[ -n "${FACTORY_API_KEY:-}" && "${FACTORY_API_KEY}" == fk-* ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -39,35 +39,35 @@ jobs:
           cat > qa-results/report.md <<'EOF'
           ## QA Report
 
-          Functional QA skipped because FACTORY_API_KEY is not available to this workflow run. Configure it as a repository or Dependabot secret to enable Droid QA.
+          Functional QA skipped because FACTORY_API_KEY is not available or is not a Factory API key for this workflow run. Configure it as a repository or Dependabot secret to enable Droid QA.
           EOF
-          printf '%s\n' 'Functional QA skipped because FACTORY_API_KEY is unavailable.' > qa-output.txt
+          printf '%s\n' 'Functional QA skipped because FACTORY_API_KEY is unavailable or invalid.' > qa-output.txt
 
       - name: Install ImageMagick
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: ${{ steps.qa_credentials.outputs.available == 'true' }}
         run: sudo apt-get update && sudo apt-get install -y -qq imagemagick
 
       - name: Setup Node
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: ${{ steps.qa_credentials.outputs.available == 'true' }}
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: ${{ steps.qa_credentials.outputs.available == 'true' }}
         run: npm ci
 
       - name: Install Playwright Chromium
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: ${{ steps.qa_credentials.outputs.available == 'true' }}
         run: npx playwright install chromium --with-deps
 
       - name: Install Factory Droid
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: ${{ steps.qa_credentials.outputs.available == 'true' }}
         run: curl -fsSL https://app.factory.ai/cli | sh
 
       - name: Run QA skill
-        if: steps.qa-credentials.outputs.available == 'true'
+        if: ${{ steps.qa_credentials.outputs.available == 'true' }}
         id: qa
         continue-on-error: true
         timeout-minutes: 18
@@ -81,6 +81,33 @@ jobs:
           mkdir -p qa-results
           set -o pipefail
           droid exec --auto high "You are running in a non-interactive CI environment. There is NO human available. Do NOT use AskUser, do NOT wait for confirmations, and do NOT pause for input. Run the qa skill for this repository. Use the default local target and test the checked-out PR branch by starting the local dev server at http://127.0.0.1:3100 through the generated QA skill. Do not fall back to the production URL for PR branch testing. Write the final report to qa-results/report.md." 2>&1 | tee qa-output.txt
+
+      - name: Classify QA outcome
+        if: always()
+        id: qa_outcome
+        run: |
+          if [ "${{ steps.qa_credentials.outputs.available }}" != "true" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ steps.qa.outcome }}" != "failure" ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -s qa-results/report.md ] && grep -q "Error during droid execution: Exec failed" qa-output.txt 2>/dev/null; then
+            mkdir -p qa-results
+            cat > qa-results/report.md <<'EOF'
+          ## QA Report
+
+          Functional QA was not completed because Droid Exec failed before the QA skill produced a report. Treat this as infrastructure-unavailable, not an application QA failure.
+          EOF
+            echo "status=infra_unavailable" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "status=failed" >> "$GITHUB_OUTPUT"
 
       - name: Upload QA artifacts
         if: always()
@@ -131,5 +158,5 @@ jobs:
           fi
 
       - name: Fail if QA failed
-        if: steps.qa.outcome == 'failure'
+        if: ${{ steps.qa_outcome.outputs.status == 'failed' }}
         run: exit 1

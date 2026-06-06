@@ -4,6 +4,7 @@ import { getServerDb } from "@/lib/db/server-db";
 import { parseScoreFiltersFromUrl } from "@/lib/scoring/filter-parse";
 import { isInvalidFilterError } from "@/lib/scoring/invalid-filter";
 import { readEvidence } from "@/lib/scoring/read-models";
+import { captureServerError } from "@/lib/observability/sentry-server";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
         { status: error.status },
       );
     }
+    captureServerError(error, { operation: "read-evidence", route: "/api/evidence", request });
     return NextResponse.json({ ok: false, error: { message: "Unable to load evidence right now." } }, { status: 500 });
   }
 }

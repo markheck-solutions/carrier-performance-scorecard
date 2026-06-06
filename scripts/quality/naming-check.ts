@@ -20,6 +20,7 @@ const ignoredDirectories = new Set([
 const kebabCasePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const pascalCasePattern = /^[A-Z][A-Za-z0-9]*$/;
 const nextSpecialFiles = new Set(["error", "layout", "loading", "not-found", "page", "route"]);
+const vendorSpecialFiles = new Set(["sentry.edge.config", "sentry.server.config"]);
 
 function normalize(filePath: string): string {
   return filePath.replaceAll("\\", "/");
@@ -58,6 +59,7 @@ function stemFor(file: string): string {
 function isAllowedStem(file: string, stem: string): boolean {
   if (stem === "README" || stem === "openapi") return true;
   if (file.startsWith("src/app/") && nextSpecialFiles.has(stem)) return true;
+  if (file.startsWith("src/") && vendorSpecialFiles.has(stem)) return true;
   if (file.startsWith("src/components/")) return kebabCasePattern.test(stem) || pascalCasePattern.test(stem);
   return kebabCasePattern.test(stem);
 }

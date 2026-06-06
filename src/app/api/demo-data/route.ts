@@ -5,6 +5,7 @@ import { DEMO_DATASET_ID } from "@/lib/db/demo-values";
 import { getServerDb } from "@/lib/db/server-db";
 import { schema } from "@/lib/db/schema";
 import { readDemoModeFlag } from "@/lib/env/server-env";
+import { captureServerError } from "@/lib/observability/sentry-server";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ function readCount(result: unknown): number {
   return 0;
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
     const { db } = getServerDb();
 
@@ -63,7 +64,8 @@ export async function GET() {
       },
       message: meta ? null : "Seed metadata is not available yet.",
     });
-  } catch {
+  } catch (error: unknown) {
+    captureServerError(error, { operation: "read-demo-data-metadata", route: "/api/demo-data", request });
     return NextResponse.json(
       { ok: false as const, error: { message: "Unable to read demo dataset metadata right now." } },
       { status: 500 },

@@ -4,6 +4,7 @@ import { getServerDb } from "@/lib/db/server-db";
 import { parseScoreFiltersFromUrl } from "@/lib/scoring/filter-parse";
 import { isInvalidFilterError } from "@/lib/scoring/invalid-filter";
 import { readScorecardsSummary } from "@/lib/scoring/read-models";
+import { captureServerError } from "@/lib/observability/sentry-server";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
         { status: error.status },
       );
     }
+    captureServerError(error, { operation: "read-scorecards-summary", route: "/api/scorecards/summary", request });
     return NextResponse.json(
       { ok: false, error: { message: "Unable to compute scorecards right now." } },
       { status: 500 },

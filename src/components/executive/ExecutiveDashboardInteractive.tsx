@@ -13,6 +13,7 @@ import type {
 } from "@/lib/scoring/types";
 import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/db/demo-values";
 import { buildDashboardQueryString, parseDashboardStateFromSearchParams } from "@/lib/filters/dashboard-state";
+import { addSentryBreadcrumb, sentryRequestHeaders } from "@/lib/observability/sentry-client";
 
 import { ExecutiveDashboard, type RuntimePosture } from "./ExecutiveDashboard";
 import type { ScorecardsSummaryModel } from "./types";
@@ -846,6 +847,20 @@ export function ExecutiveDashboardInteractive(props: {
     const href = query.length > 0 ? `/${query}` : "/";
     if (opts?.mode === "replace") window.history.replaceState({}, "", href);
     else window.history.pushState({}, "", href);
+    addSentryBreadcrumb({
+      category: "dashboard.state",
+      message: "Dashboard state changed",
+      type: "ui",
+      data: {
+        mode: opts?.mode ?? "push",
+        hasCarrierFilter: Boolean(nextState.filters.carrierId),
+        hasSelectedCarrier: Boolean(nextState.selectedCarrierId),
+        region: nextState.filters.region,
+        productType: nextState.filters.productType,
+        hasPeriod: Boolean(nextState.filters.period),
+        evidenceMode: nextState.evidenceId ? "id" : nextState.evidenceDimension ? "dimension" : "none",
+      },
+    });
     setSearchString(new URLSearchParams(window.location.search).toString());
   }, []);
 
@@ -917,10 +932,20 @@ export function ExecutiveDashboardInteractive(props: {
             return prev.previous ? { status: "loading", previous: prev.previous } : { status: "loading" };
           return { status: "loading" };
         });
-        const res = await fetch("/api/scorecards/options", { signal: controller.signal });
+        const res = await fetch("/api/scorecards/options", {
+          headers: sentryRequestHeaders(),
+          signal: controller.signal,
+        });
         const payload = (await res.json()) as ScorecardsOptionsModel;
         if (cancelled) return;
         if (!res.ok) {
+          addSentryBreadcrumb({
+            category: "api.scorecards.options",
+            message: "Filter options request failed",
+            level: "warning",
+            type: "http",
+            data: { status: res.status },
+          });
           setOptionsState({ status: "error", message: "Unable to load filter options." });
           return;
         }
@@ -928,6 +953,13 @@ export function ExecutiveDashboardInteractive(props: {
       } catch (err) {
         if (cancelled) return;
         if ((err as { name?: string }).name === "AbortError") return;
+        addSentryBreadcrumb({
+          category: "api.scorecards.options",
+          message: "Filter options request threw",
+          level: "error",
+          type: "http",
+          data: { errorName: (err as { name?: string }).name ?? "unknown" },
+        });
         setOptionsState({ status: "error", message: "Unable to load filter options." });
       }
     }
@@ -990,12 +1022,20 @@ export function ExecutiveDashboardInteractive(props: {
 
       try {
         const res = await fetch(`/api/scorecards/summary${buildFiltersQuery(stableFilters)}`, {
+          headers: sentryRequestHeaders(),
           signal: controller.signal,
         });
         const payload = (await res.json()) as ScorecardsSummaryModel | { ok: false; error?: { message?: string } };
 
         if (requestId !== summaryRequestSeq.current) return;
         if (!res.ok || !(payload as ScorecardsSummaryModel).ok) {
+          addSentryBreadcrumb({
+            category: "api.scorecards.summary",
+            message: "Scorecard summary request failed",
+            level: "warning",
+            type: "http",
+            data: { status: res.status, region: stableFilters.region, productType: stableFilters.productType },
+          });
           const message =
             (payload as { ok: false; error?: { message?: string } }).error?.message ??
             "Unable to load scorecards for this scope.";
@@ -1007,6 +1047,13 @@ export function ExecutiveDashboardInteractive(props: {
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         if (requestId !== summaryRequestSeq.current) return;
+        addSentryBreadcrumb({
+          category: "api.scorecards.summary",
+          message: "Scorecard summary request threw",
+          level: "error",
+          type: "http",
+          data: { errorName: (err as { name?: string }).name ?? "unknown" },
+        });
         setSummaryState({ status: "error", message: "Unable to load scorecards for this scope." });
       }
     }
@@ -1032,10 +1079,21 @@ export function ExecutiveDashboardInteractive(props: {
       setDetailState({ status: "loading", carrierId: requestCarrierId, requestKey });
       try {
         const scoped = buildFiltersQuery({ ...stableFilters, carrierId: null });
-        const res = await fetch(`/api/carriers/${requestCarrierId}/scorecard${scoped}`, { signal: controller.signal });
+        const carrierPathSegment = encodeURIComponent(requestCarrierId);
+        const res = await fetch(`/api/carriers/${carrierPathSegment}/scorecard${scoped}`, {
+          headers: sentryRequestHeaders(),
+          signal: controller.signal,
+        });
         const payload = (await res.json()) as CarrierDetailReadModel;
         if (requestId !== detailRequestSeq.current) return;
         if (!res.ok || !payload.ok) {
+          addSentryBreadcrumb({
+            category: "api.carrier.scorecard",
+            message: "Carrier detail request failed",
+            level: "warning",
+            type: "http",
+            data: { status: res.status, hasCarrierId: Boolean(requestCarrierId) },
+          });
           const message =
             (payload as { ok: false; error: { message: string } }).error?.message ??
             "Unable to load carrier detail right now.";
@@ -1046,6 +1104,13 @@ export function ExecutiveDashboardInteractive(props: {
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         if (requestId !== detailRequestSeq.current) return;
+        addSentryBreadcrumb({
+          category: "api.carrier.scorecard",
+          message: "Carrier detail request threw",
+          level: "error",
+          type: "http",
+          data: { errorName: (err as { name?: string }).name ?? "unknown" },
+        });
         setDetailState({
           status: "error",
           carrierId: requestCarrierId,
@@ -1107,10 +1172,20 @@ export function ExecutiveDashboardInteractive(props: {
         if (mode === "dimension") filterParams.set("dimension", state.evidenceDimension as string);
         if (mode === "delayReason") filterParams.set("delayReason", state.evidenceDelayReason as string);
         if (mode !== "id") filterParams.set("cap", "18");
-        const res = await fetch(`/api/evidence?${filterParams.toString()}`, { signal: controller.signal });
+        const res = await fetch(`/api/evidence?${filterParams.toString()}`, {
+          headers: sentryRequestHeaders(),
+          signal: controller.signal,
+        });
         const payload = (await res.json()) as EvidenceReadModel;
         if (requestId !== evidenceRequestSeq.current) return;
         if (!res.ok || !payload.ok) {
+          addSentryBreadcrumb({
+            category: "api.evidence",
+            message: "Evidence request failed",
+            level: "warning",
+            type: "http",
+            data: { status: res.status, mode },
+          });
           const message =
             (payload as { ok: false; error: { message: string } }).error?.message ??
             "Unable to load evidence right now.";
@@ -1130,6 +1205,13 @@ export function ExecutiveDashboardInteractive(props: {
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         if (requestId !== evidenceRequestSeq.current) return;
+        addSentryBreadcrumb({
+          category: "api.evidence",
+          message: "Evidence request threw",
+          level: "error",
+          type: "http",
+          data: { errorName: (err as { name?: string }).name ?? "unknown", mode },
+        });
         setEvidenceState({ status: "error", requestKey, message: "Unable to load evidence right now." });
       }
     }
