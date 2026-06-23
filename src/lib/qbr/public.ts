@@ -1,4 +1,4 @@
-import type { ProductType, Region } from "@/lib/db/demo-values";
+import type { ProductType, Region } from "@/lib/domain/demo-values";
 import type { ScoreScope } from "@/lib/scoring/types";
 
 export type QbrProviderId = "mock" | "local";

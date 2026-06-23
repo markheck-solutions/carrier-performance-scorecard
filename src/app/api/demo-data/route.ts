@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 
-import { DEMO_DATASET_ID } from "@/lib/db/demo-values";
+import { DEMO_DATASET_ID } from "@/lib/domain/demo-values";
 import { getServerDb } from "@/lib/db/server-db";
 import { schema } from "@/lib/db/schema";
 import { readDemoModeFlag } from "@/lib/env/server-env";

@@ -1,3 +1,5 @@
+import { redactString, redactUnknown } from "./redaction";
+
 export type SentryUserContextInput = {
   anonymousId?: string | null;
   sessionId?: string | null;
@@ -24,51 +26,16 @@ type SentryEventLike = {
   breadcrumbs?: unknown;
 };
 
-const REDACTED = "[redacted]";
-const MAX_DEPTH = 4;
-const MAX_ARRAY_ITEMS = 20;
 const MAX_STRING_LENGTH = 240;
 const ANONYMOUS_STORAGE_NAME = "cps-sentry-anonymous-id";
-const SENSITIVE_KEY_PATTERN =
-  /authorization|cookie|token|secret|password|passphrase|api[-_]?key|database[-_]?url|dsn|email|phone|address/i;
-const SENSITIVE_VALUE_PATTERNS = [
-  /\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?):\/\/[^\s"'`]+/gi,
-  /\bBearer\s+[A-Za-z0-9._-]{12,}\b/gi,
-  /\bsk-[A-Za-z0-9_-]{12,}\b/gi,
-  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
-  /\bhttps?:\/\/[^/\s"'`]+@[^/\s"'`]+/gi,
-];
+const sentryRedaction = { includeContact: true, maxArrayItems: 20, maxDepth: 4, maxStringLength: MAX_STRING_LENGTH };
 
 function sanitizeString(value: string): string {
-  return SENSITIVE_VALUE_PATTERNS.reduce((current, pattern) => current.replace(pattern, REDACTED), value).slice(
-    0,
-    MAX_STRING_LENGTH,
-  );
-}
-
-function sanitizeKey(key: string): string {
-  return /^[A-Za-z0-9_.:-]{1,80}$/.test(key) ? key : "unsafe_key";
+  return redactString(value, sentryRedaction);
 }
 
 function sanitizeUnknown(value: unknown, key = "", depth = 0): unknown {
-  if (SENSITIVE_KEY_PATTERN.test(key)) return REDACTED;
-  if (typeof value === "string") return sanitizeString(value);
-  if (value === null || typeof value === "number" || typeof value === "boolean") return value;
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) {
-    if (depth >= MAX_DEPTH) return "[max-depth]";
-    return value.slice(0, MAX_ARRAY_ITEMS).map((item) => sanitizeUnknown(item, "", depth + 1));
-  }
-  if (value && typeof value === "object") {
-    if (depth >= MAX_DEPTH) return "[max-depth]";
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
-        sanitizeKey(entryKey),
-        sanitizeUnknown(entryValue, entryKey, depth + 1),
-      ]),
-    );
-  }
-  return value === undefined ? undefined : "[unserializable]";
+  return redactUnknown(value, key, depth, { ...sentryRedaction, sanitizeKeys: true });
 }
 
 function stableBucket(value: string | null | undefined): string {

@@ -5,8 +5,8 @@ import type {
   ProductType,
   Region,
   RelationshipTier,
-} from "../db/demo-values";
-import { DEMO_DATASET_ID, DEMO_SEED_VERSION } from "../db/demo-values";
+} from "../domain/demo-values";
+import { DEMO_DATASET_ID, DEMO_SEED_VERSION } from "../domain/demo-values";
 
 export type DemoCarrier = {
   id: string;

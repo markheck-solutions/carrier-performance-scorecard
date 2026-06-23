@@ -1,4 +1,4 @@
-import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/db/demo-values";
+import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/domain/demo-values";
 import { SCORE_MANIFEST } from "@/lib/scoring/manifest";
 import type { ScoreFilters, ScoringComponentId } from "@/lib/scoring/types";
 
@@ -30,102 +30,111 @@ function isAllowed<T extends string>(value: string, allowed: readonly T[]): valu
   return (allowed as readonly string[]).includes(value);
 }
 
-export function parseDashboardStateFromSearchParams(
-  searchParams: URLSearchParams,
-  opts?: {
-    allowedPeriods?: readonly string[];
-    allowedCarrierIds?: readonly string[];
-  },
-): { state: DashboardState; issues: DashboardSanitizeIssue[] } {
-  const issues: DashboardSanitizeIssue[] = [];
+type ParseOptions = {
+  allowedPeriods?: readonly string[];
+  allowedCarrierIds?: readonly string[];
+};
 
-  const carrierIdRaw = parseNullable(searchParams.get("carrierId"));
-  const regionRaw = parseNullable(searchParams.get("region"));
-  const productTypeRaw = parseNullable(searchParams.get("productType"));
-  const periodRaw = parseNullable(searchParams.get("period"));
-  const selectedCarrierIdRaw = parseNullable(searchParams.get("selectedCarrierId"));
-  const evidenceIdRaw = parseNullable(searchParams.get("evidenceId"));
-  const evidenceDimensionRaw = parseNullable(searchParams.get("evidenceDimension"));
-  const evidenceDelayReasonRaw = parseNullable(searchParams.get("evidenceDelayReason"));
+type EvidenceScope = {
+  evidenceId: string | null;
+  evidenceDimension: ScoringComponentId | null;
+  evidenceDelayReason: string | null;
+};
 
-  const carrierId =
-    carrierIdRaw && opts?.allowedCarrierIds && !opts.allowedCarrierIds.includes(carrierIdRaw)
-      ? (issues.push({ kind: "invalid_carrierId", value: carrierIdRaw }), null)
-      : carrierIdRaw;
+function reject(issues: DashboardSanitizeIssue[], issue: DashboardSanitizeIssue): null {
+  issues.push(issue);
+  return null;
+}
 
-  const region =
-    regionRaw && !isAllowed<Region>(regionRaw, REGION_VALUES)
-      ? (issues.push({ kind: "invalid_region", value: regionRaw }), null)
-      : (regionRaw as Region | null);
+function parseCarrierFilter(raw: string | null, opts: ParseOptions | undefined, issues: DashboardSanitizeIssue[]) {
+  if (!raw) return null;
+  return opts?.allowedCarrierIds && !opts.allowedCarrierIds.includes(raw)
+    ? reject(issues, { kind: "invalid_carrierId", value: raw })
+    : raw;
+}
 
-  const productType =
-    productTypeRaw && !isAllowed<ProductType>(productTypeRaw, PRODUCT_TYPE_VALUES)
-      ? (issues.push({ kind: "invalid_productType", value: productTypeRaw }), null)
-      : (productTypeRaw as ProductType | null);
+function parseSelectedCarrierId(raw: string | null, issues: DashboardSanitizeIssue[]) {
+  if (!raw) return null;
+  return /[^a-zA-Z0-9-]/.test(raw) ? reject(issues, { kind: "invalid_carrierId", value: raw }) : raw;
+}
 
-  const period =
-    periodRaw && opts?.allowedPeriods && !opts.allowedPeriods.includes(periodRaw)
-      ? (issues.push({ kind: "invalid_period", value: periodRaw }), null)
-      : periodRaw;
+function parseRegion(raw: string | null, issues: DashboardSanitizeIssue[]): Region | null {
+  if (!raw) return null;
+  return isAllowed<Region>(raw, REGION_VALUES) ? raw : reject(issues, { kind: "invalid_region", value: raw });
+}
 
-  const selectedCarrierId =
-    selectedCarrierIdRaw && /[^a-zA-Z0-9-]/.test(selectedCarrierIdRaw)
-      ? (issues.push({ kind: "invalid_carrierId", value: selectedCarrierIdRaw }), null)
-      : selectedCarrierIdRaw;
+function parseProductType(raw: string | null, issues: DashboardSanitizeIssue[]): ProductType | null {
+  if (!raw) return null;
+  return isAllowed<ProductType>(raw, PRODUCT_TYPE_VALUES)
+    ? raw
+    : reject(issues, { kind: "invalid_productType", value: raw });
+}
 
-  const evidenceId =
-    evidenceIdRaw && /[^a-zA-Z0-9-]/.test(evidenceIdRaw)
-      ? (issues.push({ kind: "invalid_evidenceId", value: evidenceIdRaw }), null)
-      : evidenceIdRaw;
+function parsePeriod(raw: string | null, opts: ParseOptions | undefined, issues: DashboardSanitizeIssue[]) {
+  if (!raw) return null;
+  return opts?.allowedPeriods && !opts.allowedPeriods.includes(raw)
+    ? reject(issues, { kind: "invalid_period", value: raw })
+    : raw;
+}
 
-  const allowedEvidenceDimensions = Object.keys(SCORE_MANIFEST.components) as ScoringComponentId[];
-  const evidenceDimension =
-    evidenceDimensionRaw &&
-    (!/^[a-z_]+$/.test(evidenceDimensionRaw) ||
-      !allowedEvidenceDimensions.includes(evidenceDimensionRaw as ScoringComponentId))
-      ? (issues.push({ kind: "invalid_evidenceDimension", value: evidenceDimensionRaw }), null)
-      : (evidenceDimensionRaw as ScoringComponentId | null);
+function parseEvidenceId(raw: string | null, issues: DashboardSanitizeIssue[]) {
+  if (!raw) return null;
+  return /[^a-zA-Z0-9-]/.test(raw) ? reject(issues, { kind: "invalid_evidenceId", value: raw }) : raw;
+}
 
-  const evidenceDelayReason =
-    evidenceDelayReasonRaw && !/^[a-z_]+$/.test(evidenceDelayReasonRaw)
-      ? (issues.push({ kind: "invalid_evidenceDelayReason", value: evidenceDelayReasonRaw }), null)
-      : evidenceDelayReasonRaw;
+function parseEvidenceDimension(raw: string | null, issues: DashboardSanitizeIssue[]): ScoringComponentId | null {
+  if (!raw) return null;
+  const allowed = Object.keys(SCORE_MANIFEST.components) as ScoringComponentId[];
+  return /^[a-z_]+$/.test(raw) && allowed.includes(raw as ScoringComponentId)
+    ? (raw as ScoringComponentId)
+    : reject(issues, { kind: "invalid_evidenceDimension", value: raw });
+}
+
+function parseEvidenceDelayReason(raw: string | null, issues: DashboardSanitizeIssue[]) {
+  if (!raw) return null;
+  return /^[a-z_]+$/.test(raw) ? raw : reject(issues, { kind: "invalid_evidenceDelayReason", value: raw });
+}
+
+function normalizeEvidenceScope(scope: EvidenceScope, issues: DashboardSanitizeIssue[]): EvidenceScope {
+  const keys = [
+    scope.evidenceId ? "evidenceId" : null,
+    scope.evidenceDimension ? "evidenceDimension" : null,
+    scope.evidenceDelayReason ? "evidenceDelayReason" : null,
+  ].filter((value): value is string => Boolean(value));
 
   // Evidence scope is mutually exclusive: deep links must not specify multiple proof drivers.
   // If a link contains multiple evidence scope params, deterministically choose one and drop the others.
-  const evidenceScopes = [
-    evidenceId ? "evidenceId" : null,
-    evidenceDimension ? "evidenceDimension" : null,
-    evidenceDelayReason ? "evidenceDelayReason" : null,
-  ].filter((v): v is string => Boolean(v));
+  if (keys.length <= 1) return scope;
 
-  const normalizedEvidenceId = evidenceId;
-  let normalizedEvidenceDimension = evidenceDimension;
-  let normalizedEvidenceDelayReason = evidenceDelayReason;
+  issues.push({ kind: "conflicting_evidenceScope", value: keys.join("+") });
+  if (scope.evidenceId) return { evidenceId: scope.evidenceId, evidenceDimension: null, evidenceDelayReason: null };
+  return { ...scope, evidenceDelayReason: null };
+}
 
-  if (evidenceScopes.length > 1) {
-    issues.push({ kind: "conflicting_evidenceScope", value: evidenceScopes.join("+") });
-    // Priority: a concrete evidence id wins over dimension, which wins over delay-reason scope.
-    if (normalizedEvidenceId) {
-      normalizedEvidenceDimension = null;
-      normalizedEvidenceDelayReason = null;
-    } else if (normalizedEvidenceDimension) {
-      normalizedEvidenceDelayReason = null;
-    }
-  }
+export function parseDashboardStateFromSearchParams(
+  searchParams: URLSearchParams,
+  opts?: ParseOptions,
+): { state: DashboardState; issues: DashboardSanitizeIssue[] } {
+  const issues: DashboardSanitizeIssue[] = [];
+  const evidenceScope = normalizeEvidenceScope(
+    {
+      evidenceId: parseEvidenceId(parseNullable(searchParams.get("evidenceId")), issues),
+      evidenceDimension: parseEvidenceDimension(parseNullable(searchParams.get("evidenceDimension")), issues),
+      evidenceDelayReason: parseEvidenceDelayReason(parseNullable(searchParams.get("evidenceDelayReason")), issues),
+    },
+    issues,
+  );
 
   return {
     state: {
       filters: {
-        carrierId,
-        region,
-        productType,
-        period,
+        carrierId: parseCarrierFilter(parseNullable(searchParams.get("carrierId")), opts, issues),
+        region: parseRegion(parseNullable(searchParams.get("region")), issues),
+        productType: parseProductType(parseNullable(searchParams.get("productType")), issues),
+        period: parsePeriod(parseNullable(searchParams.get("period")), opts, issues),
       },
-      selectedCarrierId,
-      evidenceId: normalizedEvidenceId,
-      evidenceDimension: normalizedEvidenceDimension,
-      evidenceDelayReason: normalizedEvidenceDelayReason,
+      selectedCarrierId: parseSelectedCarrierId(parseNullable(searchParams.get("selectedCarrierId")), issues),
+      ...evidenceScope,
     },
     issues,
   };
@@ -133,16 +142,20 @@ export function parseDashboardStateFromSearchParams(
 
 export function buildDashboardQueryString(state: DashboardState): string {
   const params = new URLSearchParams();
-  const f = state.filters;
+  const entries = [
+    ["carrierId", state.filters.carrierId],
+    ["region", state.filters.region],
+    ["productType", state.filters.productType],
+    ["period", state.filters.period],
+    ["selectedCarrierId", state.selectedCarrierId],
+    ["evidenceId", state.evidenceId],
+    ["evidenceDimension", state.evidenceDimension],
+    ["evidenceDelayReason", state.evidenceDelayReason],
+  ] as const;
 
-  if (f.carrierId) params.set("carrierId", f.carrierId);
-  if (f.region) params.set("region", f.region);
-  if (f.productType) params.set("productType", f.productType);
-  if (f.period) params.set("period", f.period);
-  if (state.selectedCarrierId) params.set("selectedCarrierId", state.selectedCarrierId);
-  if (state.evidenceId) params.set("evidenceId", state.evidenceId);
-  if (state.evidenceDimension) params.set("evidenceDimension", state.evidenceDimension);
-  if (state.evidenceDelayReason) params.set("evidenceDelayReason", state.evidenceDelayReason);
+  for (const [key, value] of entries) {
+    if (value) params.set(key, value);
+  }
 
   const raw = params.toString();
   return raw.length > 0 ? `?${raw}` : "";

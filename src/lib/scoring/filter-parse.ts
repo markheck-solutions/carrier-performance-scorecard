@@ -1,5 +1,5 @@
-import type { ProductType, Region } from "../db/demo-values";
-import { PRODUCT_TYPE_VALUES, REGION_VALUES } from "../db/demo-values";
+import type { ProductType, Region } from "../domain/demo-values";
+import { PRODUCT_TYPE_VALUES, REGION_VALUES } from "../domain/demo-values";
 import { InvalidFilterError } from "./invalid-filter";
 import type { ScoreFilters } from "./types";
 

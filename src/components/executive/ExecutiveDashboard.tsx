@@ -1,6 +1,6 @@
 "use client";
 
-import { DEMO_DATASET_ID, DEMO_SEED_VERSION } from "@/lib/db/demo-values";
+import { DEMO_DATASET_ID, DEMO_SEED_VERSION } from "@/lib/domain/demo-values";
 import type { CarrierScorecard, ScoreGrade, ScoringComponentId } from "@/lib/scoring/types";
 
 import {

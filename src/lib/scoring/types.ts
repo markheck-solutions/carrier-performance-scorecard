@@ -1,4 +1,4 @@
-import type { ProductType, Region } from "../db/demo-values";
+import type { ProductType, Region } from "../domain/demo-values";
 
 export type ScoringComponentId =
   | "commitment_adherence"

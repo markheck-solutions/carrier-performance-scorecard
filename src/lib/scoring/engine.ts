@@ -7,7 +7,7 @@ import {
 } from "./manifest";
 import { normalizeLinear, roundTo } from "./normalize";
 import { selectEvidenceIds, type EvidenceCandidate } from "./evidence";
-import type { ProductType, Region } from "../db/demo-values";
+import type { ProductType, Region } from "../domain/demo-values";
 import type {
   CarrierScorecard,
   ConfidenceLabel,
@@ -147,6 +147,166 @@ function buildScope(filters: ScoreFilters, periodsInScope: readonly PeriodInfo[]
   return { filters: normalized, periodWindow };
 }
 
+type ComponentMetricDraft = {
+  availability: "ok" | "insufficient_data";
+  dataNotes: string[];
+  denominator: number;
+  metricKind: "scalar" | "ratio";
+  metricValue: number;
+  numerator: number;
+};
+
+function missingData(
+  note: string,
+  draft: Omit<ComponentMetricDraft, "availability" | "dataNotes">,
+): ComponentMetricDraft {
+  return { ...draft, availability: "insufficient_data", dataNotes: [note] };
+}
+
+function okMetric(draft: Omit<ComponentMetricDraft, "availability" | "dataNotes">): ComponentMetricDraft {
+  return { ...draft, availability: "ok", dataNotes: [] };
+}
+
+function commitmentMetric(deliveries: readonly DeliveryInfo[], note: string): ComponentMetricDraft {
+  const rate = onTimeCompletionRate(deliveries);
+  const draft = {
+    denominator: rate.denominator,
+    metricKind: "ratio" as const,
+    metricValue: rate.rate,
+    numerator: rate.numerator,
+  };
+  return rate.denominator === 0 ? missingData(note, { ...draft, metricValue: 0 }) : okMetric(draft);
+}
+
+function delayMetric(deliveries: readonly DeliveryInfo[], note: string): ComponentMetricDraft {
+  const completed = deliveries.filter((d) => d.stage === "completed");
+  const draft = {
+    denominator: 0,
+    metricKind: "scalar" as const,
+    metricValue: average(completed.map((d) => d.delayDays)),
+    numerator: 0,
+  };
+  return completed.length === 0 ? missingData(note, draft) : okMetric(draft);
+}
+
+function repeatMetric(deliveries: readonly DeliveryInfo[], note: string): ComponentMetricDraft {
+  const repeats = deliveries.filter((d) => d.isRepeat).length;
+  const denominator = deliveries.length;
+  const draft = {
+    denominator,
+    metricKind: "ratio" as const,
+    metricValue: denominator === 0 ? 0 : repeats / denominator,
+    numerator: repeats,
+  };
+  return denominator === 0 ? missingData(note, draft) : okMetric(draft);
+}
+
+function averageMetric(values: readonly number[], note: string): ComponentMetricDraft {
+  const draft = { denominator: 0, metricKind: "scalar" as const, metricValue: average(values), numerator: 0 };
+  return values.length === 0 ? missingData(note, draft) : okMetric(draft);
+}
+
+function agingOpenCommitmentsMetric(
+  deliveries: readonly DeliveryInfo[],
+  periodsInScope: readonly PeriodInfo[],
+  note: string,
+): ComponentMetricDraft {
+  const open = deliveries.filter((d) => d.stage === "open" || d.stage === "in_progress");
+  const periodBySeedKey = new Map(periodsInScope.map((p) => [p.seedKey, p]));
+  const aging = open.filter((d) => isAgingOpenCommitment(d, periodBySeedKey)).length;
+  const draft = {
+    denominator: open.length,
+    metricKind: "ratio" as const,
+    metricValue: open.length === 0 ? 0 : aging / open.length,
+    numerator: aging,
+  };
+  return open.length === 0 ? missingData(note, draft) : okMetric(draft);
+}
+
+function isAgingOpenCommitment(delivery: DeliveryInfo, periodBySeedKey: Map<string, PeriodInfo>) {
+  const period = periodBySeedKey.get(delivery.periodSeedKey);
+  const end = period?.endDate ? Date.parse(`${period.endDate}T00:00:00.000Z`) : 0;
+  const opened = Date.parse(delivery.openedAtIso);
+  if (!Number.isFinite(end) || !Number.isFinite(opened) || end <= 0 || opened <= 0) return false;
+  const ageDays = (end - opened) / (1000 * 60 * 60 * 24);
+  return ageDays >= 30;
+}
+
+function trendMetric(deliveries: readonly DeliveryInfo[], note: string): ComponentMetricDraft {
+  const trend = computeTrendDelta(deliveries);
+  const draft = { denominator: 0, metricKind: "scalar" as const, metricValue: trend.delta, numerator: 0 };
+  return trend.available ? okMetric(draft) : missingData(note, draft);
+}
+
+function componentMetric(params: {
+  componentId: ScoringComponentId;
+  deliveries: readonly DeliveryInfo[];
+  periodsInScope: readonly PeriodInfo[];
+  missingDataNote: string;
+}): ComponentMetricDraft {
+  switch (params.componentId) {
+    case "commitment_adherence":
+      return commitmentMetric(params.deliveries, params.missingDataNote);
+    case "delay_severity":
+      return delayMetric(params.deliveries, params.missingDataNote);
+    case "repeat_issue_concentration":
+      return repeatMetric(params.deliveries, params.missingDataNote);
+    case "responsiveness":
+      return averageMetric(
+        params.deliveries.map((d) => d.responsivenessHours),
+        params.missingDataNote,
+      );
+    case "aging_open_commitments":
+      return agingOpenCommitmentsMetric(params.deliveries, params.periodsInScope, params.missingDataNote);
+    case "escalation_volume":
+      return averageMetric(
+        params.deliveries.map((d) => d.escalationCount),
+        params.missingDataNote,
+      );
+    case "completion_trend":
+      return trendMetric(params.deliveries, params.missingDataNote);
+  }
+}
+
+const staticComponentExplanations: Partial<Record<ScoringComponentId, string>> = {
+  delay_severity: "Average delay days for completed deliveries in the selected scope.",
+  escalation_volume: "Average escalations per record in the selected scope.",
+  responsiveness: "Average responsiveness time in hours in the selected scope.",
+};
+
+function ratioExplanation(draft: ComponentMetricDraft, empty: string, populated: string) {
+  return draft.denominator === 0 ? empty : populated;
+}
+
+function componentExplanation(componentId: ScoringComponentId, draft: ComponentMetricDraft): string {
+  if (componentId === "commitment_adherence")
+    return ratioExplanation(
+      draft,
+      "No completed deliveries in scope. Treat this signal as neutral and low confidence.",
+      `On-time deliveries: ${draft.numerator}/${draft.denominator} in the selected scope.`,
+    );
+  if (componentId === "repeat_issue_concentration")
+    return ratioExplanation(
+      draft,
+      "No deliveries in scope. Treat this signal as neutral and low confidence.",
+      `Repeat-flagged records: ${draft.numerator}/${draft.denominator} in the selected scope.`,
+    );
+  if (componentId === "aging_open_commitments")
+    return ratioExplanation(
+      draft,
+      "No open commitments in scope. Treat this signal as best-case.",
+      `Aging open items (30+ days within period window): ${draft.numerator}/${draft.denominator}.`,
+    );
+  if (componentId === "completion_trend") return completionTrendExplanation(draft);
+  return staticComponentExplanations[componentId] ?? "Score component in the selected scope.";
+}
+
+function completionTrendExplanation(draft: ComponentMetricDraft) {
+  return draft.availability === "insufficient_data"
+    ? "Not enough period history in the selected scope to determine momentum."
+    : "Change in on-time completion rate from earlier to later periods in scope.";
+}
+
 function buildComponent(params: {
   componentId: ScoringComponentId;
   scope: ScoreScope;
@@ -157,112 +317,19 @@ function buildComponent(params: {
 }): ScoreComponentResult {
   const manifest = SCORE_COMPONENTS[params.componentId];
   const evidenceIds = pickEvidence(params.componentId, params.evidenceCandidates);
-
-  const dataNotes: string[] = [];
-  let availability: "ok" | "insufficient_data" = "ok";
-
   const norm = manifest.normalization;
-  let metricValue: number;
-  let metricKind: "scalar" | "ratio" = "scalar";
-  let numerator = 0;
-  let denominator = 0;
-
-  switch (params.componentId) {
-    case "commitment_adherence": {
-      const rate = onTimeCompletionRate(params.deliveries);
-      metricKind = "ratio";
-      numerator = rate.numerator;
-      denominator = rate.denominator;
-      metricValue = rate.rate;
-      if (denominator === 0) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-        metricValue = 0;
-      }
-      break;
-    }
-    case "delay_severity": {
-      const completed = params.deliveries.filter((d) => d.stage === "completed");
-      metricValue = average(completed.map((d) => d.delayDays));
-      metricKind = "scalar";
-      if (completed.length === 0) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-      }
-      break;
-    }
-    case "repeat_issue_concentration": {
-      const repeats = params.deliveries.filter((d) => d.isRepeat).length;
-      metricKind = "ratio";
-      numerator = repeats;
-      denominator = params.deliveries.length;
-      metricValue = denominator === 0 ? 0 : repeats / denominator;
-      if (denominator === 0) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-      }
-      break;
-    }
-    case "responsiveness": {
-      const values = params.deliveries.map((d) => d.responsivenessHours);
-      metricKind = "scalar";
-      metricValue = average(values);
-      if (values.length === 0) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-      }
-      break;
-    }
-    case "aging_open_commitments": {
-      const open = params.deliveries.filter((d) => d.stage === "open" || d.stage === "in_progress");
-      metricKind = "ratio";
-      denominator = open.length;
-
-      const periodBySeedKey = new Map(params.periodsInScope.map((p) => [p.seedKey, p]));
-      const aging = open.filter((d) => {
-        const period = periodBySeedKey.get(d.periodSeedKey);
-        const end = period?.endDate ? Date.parse(`${period.endDate}T00:00:00.000Z`) : 0;
-        const opened = Date.parse(d.openedAtIso);
-        if (!Number.isFinite(end) || !Number.isFinite(opened) || end <= 0 || opened <= 0) return false;
-        const ageDays = (end - opened) / (1000 * 60 * 60 * 24);
-        return ageDays >= 30;
-      }).length;
-
-      numerator = aging;
-      metricValue = denominator === 0 ? 0 : aging / denominator;
-      if (denominator === 0) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-      }
-      break;
-    }
-    case "escalation_volume": {
-      const escalations = params.deliveries.map((d) => d.escalationCount);
-      metricKind = "scalar";
-      metricValue = average(escalations);
-      if (escalations.length === 0) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-      }
-      break;
-    }
-    case "completion_trend": {
-      const trend = computeTrendDelta(params.deliveries);
-      metricKind = "scalar";
-      metricValue = trend.delta;
-      if (!trend.available) {
-        availability = "insufficient_data";
-        dataNotes.push(manifest.missingDataPolicy.note);
-      }
-      break;
-    }
-  }
+  const draft = componentMetric({
+    componentId: params.componentId,
+    deliveries: params.deliveries,
+    periodsInScope: params.periodsInScope,
+    missingDataNote: manifest.missingDataPolicy.note,
+  });
 
   const normalizedScoreRaw =
-    availability === "insufficient_data"
+    draft.availability === "insufficient_data"
       ? manifest.missingDataPolicy.normalizedScore
       : normalizeLinear({
-          value: metricValue,
+          value: draft.metricValue,
           best: norm.best,
           worst: norm.worst,
           floor: norm.floor,
@@ -274,55 +341,127 @@ function buildComponent(params: {
   const contributionRaw = (normalizedScore / 100) * manifest.weight;
   const contribution = roundTo(contributionRaw, SCORE_ROUNDING.contributionDecimals);
 
-  const explanationBase = (() => {
-    switch (params.componentId) {
-      case "commitment_adherence":
-        return denominator === 0
-          ? "No completed deliveries in scope. Treat this signal as neutral and low confidence."
-          : `On-time deliveries: ${numerator}/${denominator} in the selected scope.`;
-      case "delay_severity":
-        return "Average delay days for completed deliveries in the selected scope.";
-      case "repeat_issue_concentration":
-        return denominator === 0
-          ? "No deliveries in scope. Treat this signal as neutral and low confidence."
-          : `Repeat-flagged records: ${numerator}/${denominator} in the selected scope.`;
-      case "responsiveness":
-        return "Average responsiveness time in hours in the selected scope.";
-      case "aging_open_commitments":
-        return denominator === 0
-          ? "No open commitments in scope. Treat this signal as best-case."
-          : `Aging open items (30+ days within period window): ${numerator}/${denominator}.`;
-      case "escalation_volume":
-        return "Average escalations per record in the selected scope.";
-      case "completion_trend":
-        return availability === "insufficient_data"
-          ? "Not enough period history in the selected scope to determine momentum."
-          : "Change in on-time completion rate from earlier to later periods in scope.";
-    }
-  })();
-
   return {
     id: manifest.id,
     label: manifest.label,
     direction: manifest.direction,
     weight: manifest.weight,
     metric:
-      metricKind === "ratio"
-        ? { kind: "ratio", numerator, denominator, unit: manifest.unit }
-        : { kind: "scalar", value: metricValue, unit: manifest.unit },
+      draft.metricKind === "ratio"
+        ? { kind: "ratio", numerator: draft.numerator, denominator: draft.denominator, unit: manifest.unit }
+        : { kind: "scalar", value: draft.metricValue, unit: manifest.unit },
     sampleCount: params.sampleCount,
     evidenceCount: evidenceIds.length,
     evidenceIds,
     normalization: norm,
     normalizedScore,
     contribution,
-    explanation: explanationBase,
+    explanation: componentExplanation(params.componentId, draft),
     dataQuality: {
-      availability,
-      notes: dataNotes,
+      availability: draft.availability,
+      notes: draft.dataNotes,
     },
     scope: params.scope,
   };
+}
+
+function groupDeliveriesByCarrier(deliveries: readonly DeliveryInfo[]) {
+  const grouped = new Map<string, DeliveryInfo[]>();
+  for (const delivery of deliveries) {
+    grouped.set(delivery.carrierId, [...(grouped.get(delivery.carrierId) ?? []), delivery]);
+  }
+  return grouped;
+}
+
+function groupEvidenceByCarrier(evidenceCandidates: readonly EvidenceCandidate[]) {
+  const grouped = new Map<string, EvidenceCandidate[]>();
+  for (const evidence of evidenceCandidates) {
+    grouped.set(evidence.carrierId, [...(grouped.get(evidence.carrierId) ?? []), evidence]);
+  }
+  return grouped;
+}
+
+function countBy<T extends string>(values: readonly T[]) {
+  const counts = new Map<T, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return counts;
+}
+
+function sortedShares<T extends string>(counts: Map<T, number>, sampleCount: number, key: "region" | "productType") {
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ [key]: value, count, share: sampleCount > 0 ? count / sampleCount : 0 }));
+}
+
+function confidenceForSample(sampleCount: number) {
+  const lowVolume = sampleCount < SCORE_MANIFEST.lowVolume.sampleCountThreshold;
+  return {
+    label: confidenceLabelForSample(sampleCount),
+    lowVolume,
+    threshold: SCORE_MANIFEST.lowVolume.sampleCountThreshold,
+    notes: lowVolume
+      ? [`Limited sample size (${sampleCount} record(s)) in this scope. Treat rankings and grades as directional.`]
+      : [],
+  };
+}
+
+function buildCarrierScorecard(params: {
+  carrier: CarrierInfo;
+  carrierDeliveries: readonly DeliveryInfo[];
+  carrierEvidence: readonly EvidenceCandidate[];
+  periods: readonly PeriodInfo[];
+  scope: ScoreScope;
+}): CarrierScorecard {
+  const sampleCount = params.carrierDeliveries.length;
+  const regions = sortedShares(countBy(params.carrierDeliveries.map((d) => d.region)), sampleCount, "region") as Array<{
+    region: Region;
+    count: number;
+    share: number;
+  }>;
+  const productTypes = sortedShares(
+    countBy(params.carrierDeliveries.map((d) => d.productType)),
+    sampleCount,
+    "productType",
+  ) as Array<{ productType: ProductType; count: number; share: number }>;
+  const components = (Object.keys(SCORE_COMPONENTS) as ScoringComponentId[]).map((id) =>
+    buildComponent({
+      componentId: id,
+      scope: params.scope,
+      deliveries: params.carrierDeliveries,
+      evidenceCandidates: params.carrierEvidence,
+      sampleCount,
+      periodsInScope: params.periods,
+    }),
+  );
+  const totalScore = roundTo(
+    components.reduce((acc, c) => acc + c.contribution, 0),
+    SCORE_ROUNDING.totalScoreDecimals,
+  );
+
+  return {
+    carrier: params.carrier,
+    scope: params.scope,
+    mix: {
+      regions,
+      productTypes,
+      topRegion: regions[0]?.region ?? null,
+      topProductType: productTypes[0]?.productType ?? null,
+    },
+    sampleCount,
+    confidence: confidenceForSample(sampleCount),
+    components,
+    totalScore,
+    grade: gradeFromScore(totalScore),
+    rankTieBreaker: [...SCORE_TIE_BREAKERS],
+  };
+}
+
+function rankScorecards(scorecards: CarrierScorecard[]) {
+  return scorecards.sort((a, b) => {
+    if (a.totalScore !== b.totalScore) return b.totalScore - a.totalScore;
+    if (a.carrier.name !== b.carrier.name) return a.carrier.name.localeCompare(b.carrier.name);
+    return a.carrier.id.localeCompare(b.carrier.id);
+  });
 }
 
 export function buildCarrierScorecards(params: {
@@ -333,97 +472,22 @@ export function buildCarrierScorecards(params: {
   filters: ScoreFilters;
 }) {
   const scope = buildScope(params.filters, params.periods);
-
-  const deliveriesByCarrier = new Map<string, DeliveryInfo[]>();
-  for (const d of params.deliveries) {
-    const arr = deliveriesByCarrier.get(d.carrierId) ?? [];
-    arr.push(d);
-    deliveriesByCarrier.set(d.carrierId, arr);
-  }
-
-  const evidenceByCarrier = new Map<string, EvidenceCandidate[]>();
-  for (const ev of params.evidenceCandidates) {
-    const arr = evidenceByCarrier.get(ev.carrierId) ?? [];
-    arr.push(ev);
-    evidenceByCarrier.set(ev.carrierId, arr);
-  }
-
-  const scorecards: CarrierScorecard[] = [];
-
-  for (const carrier of params.carriers) {
+  const deliveriesByCarrier = groupDeliveriesByCarrier(params.deliveries);
+  const evidenceByCarrier = groupEvidenceByCarrier(params.evidenceCandidates);
+  const scorecards = params.carriers.flatMap((carrier) => {
     const carrierDeliveries = deliveriesByCarrier.get(carrier.id) ?? [];
-    if (carrierDeliveries.length === 0) continue;
-
-    const sampleCount = carrierDeliveries.length;
-    const lowVolume = sampleCount < SCORE_MANIFEST.lowVolume.sampleCountThreshold;
-    const confidenceLabel = confidenceLabelForSample(sampleCount);
-
-    const confidenceNotes: string[] = [];
-    if (lowVolume) {
-      confidenceNotes.push(
-        `Limited sample size (${sampleCount} record(s)) in this scope. Treat rankings and grades as directional.`,
-      );
-    }
-
-    const carrierEvidence = evidenceByCarrier.get(carrier.id) ?? [];
-
-    const regionCounts = new Map<Region, number>();
-    const productCounts = new Map<ProductType, number>();
-    for (const d of carrierDeliveries) {
-      regionCounts.set(d.region, (regionCounts.get(d.region) ?? 0) + 1);
-      productCounts.set(d.productType, (productCounts.get(d.productType) ?? 0) + 1);
-    }
-
-    const regions = Array.from(regionCounts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([region, count]) => ({ region, count, share: sampleCount > 0 ? count / sampleCount : 0 }));
-
-    const productTypes = Array.from(productCounts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([productType, count]) => ({ productType, count, share: sampleCount > 0 ? count / sampleCount : 0 }));
-
-    const components = (Object.keys(SCORE_COMPONENTS) as ScoringComponentId[]).map((id) =>
-      buildComponent({
-        componentId: id,
-        scope,
-        deliveries: carrierDeliveries,
-        evidenceCandidates: carrierEvidence,
-        sampleCount,
-        periodsInScope: params.periods,
-      }),
-    );
-
-    const totalScoreRaw = components.reduce((acc, c) => acc + c.contribution, 0);
-    const totalScore = roundTo(totalScoreRaw, SCORE_ROUNDING.totalScoreDecimals);
-
-    scorecards.push({
-      carrier,
-      scope,
-      mix: {
-        regions,
-        productTypes,
-        topRegion: regions[0]?.region ?? null,
-        topProductType: productTypes[0]?.productType ?? null,
-      },
-      sampleCount,
-      confidence: {
-        label: confidenceLabel,
-        lowVolume,
-        threshold: SCORE_MANIFEST.lowVolume.sampleCountThreshold,
-        notes: confidenceNotes,
-      },
-      components,
-      totalScore,
-      grade: gradeFromScore(totalScore),
-      rankTieBreaker: [...SCORE_TIE_BREAKERS],
-    });
-  }
-
-  const ranked = scorecards.sort((a, b) => {
-    if (a.totalScore !== b.totalScore) return b.totalScore - a.totalScore;
-    if (a.carrier.name !== b.carrier.name) return a.carrier.name.localeCompare(b.carrier.name);
-    return a.carrier.id.localeCompare(b.carrier.id);
+    return carrierDeliveries.length === 0
+      ? []
+      : [
+          buildCarrierScorecard({
+            carrier,
+            carrierDeliveries,
+            carrierEvidence: evidenceByCarrier.get(carrier.id) ?? [],
+            periods: params.periods,
+            scope,
+          }),
+        ];
   });
 
-  return { scope, scorecards: ranked };
+  return { scope, scorecards: rankScorecards(scorecards) };
 }

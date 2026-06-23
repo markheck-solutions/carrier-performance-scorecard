@@ -3,7 +3,7 @@ import type { SQL } from "drizzle-orm";
 
 import type { DemoDb } from "../db/ensure-schema";
 import { schema } from "../db/schema";
-import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "../db/demo-values";
+import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "../domain/demo-values";
 import { buildCarrierScorecards, type CarrierInfo, type DeliveryInfo, type PeriodInfo } from "./engine";
 import type { EvidenceCandidate } from "./evidence";
 import type { ScoreFilters } from "./types";
@@ -105,12 +105,12 @@ function toIsoString(value: unknown): string {
   return new Date(0).toISOString();
 }
 
-export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): Promise<ScorecardsSummaryReadModel> {
-  const f = normalizeFilters(filters);
+function assertScoreFilters(f: ScoreFilters) {
   assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
   assertAllowedFilter({ field: "productType", value: f.productType, allowed: PRODUCT_TYPE_VALUES });
+}
 
-  const periods = await db.select().from(schema.periods);
+function resolvePeriodMatch(periods: Array<typeof schema.periods.$inferSelect>, f: ScoreFilters) {
   const periodMatch = f.period ? periods.find((p) => p.seedKey === f.period) : null;
   if (f.period && !periodMatch) {
     throw new InvalidFilterError({
@@ -119,22 +119,26 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
       allowed: periods.map((p) => p.seedKey),
     });
   }
+  return periodMatch ?? null;
+}
 
-  const clauses = whereClauses(f, periodMatch?.id ?? null);
-
-  const deliveries = clauses.length
+async function loadDeliveries(db: DemoDb, clauses: SQL[]) {
+  return clauses.length
     ? await db
         .select()
         .from(schema.deliveryRecords)
         .where(and(...clauses))
     : await db.select().from(schema.deliveryRecords);
+}
 
-  const carrierIds = Array.from(new Set(deliveries.map((d) => d.carrierId)));
-  const carriers = carrierIds.length
+async function loadCarriers(db: DemoDb, carrierIds: string[]) {
+  return carrierIds.length
     ? await db.select().from(schema.carriers).where(inArray(schema.carriers.id, carrierIds))
     : [];
+}
 
-  const evidence = carrierIds.length
+async function loadEvidenceRows(db: DemoDb, carrierIds: string[], clauses: SQL[]) {
+  return carrierIds.length
     ? await db
         .select({
           id: schema.evidenceItems.id,
@@ -157,33 +161,47 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
         .from(schema.evidenceItems)
         .innerJoin(schema.deliveryRecords, eq(schema.deliveryRecords.id, schema.evidenceItems.deliveryRecordId))
         .innerJoin(schema.periods, eq(schema.periods.id, schema.evidenceItems.periodId))
-        .where(and(inArray(schema.evidenceItems.carrierId, carrierIds), ...(clauses as SQL[])))
+        .where(and(inArray(schema.evidenceItems.carrierId, carrierIds), ...clauses))
     : [];
+}
 
-  const carrierInfo: CarrierInfo[] = carriers.map((c) => ({
+function toCarrierInfoRows(carriers: Array<typeof schema.carriers.$inferSelect>): CarrierInfo[] {
+  return carriers.map((c) => ({
     id: c.id,
     name: c.name,
     shortCode: c.shortCode,
     relationshipTier: c.relationshipTier,
     regionFocus: c.regionFocus,
   }));
+}
 
-  const periodInfo: PeriodInfo[] = periods.map((p) => ({
+function toPeriodInfoRows(periods: Array<typeof schema.periods.$inferSelect>): PeriodInfo[] {
+  return periods.map((p) => ({
     id: p.id,
     seedKey: p.seedKey,
     label: p.label,
     startDate: p.startDate,
     endDate: p.endDate,
   }));
+}
 
-  const periodSeedKeyById = new Map(periodInfo.map((p) => [p.id, p.seedKey]));
-  const periodIdsInScope = new Set(deliveries.map((d) => d.periodId));
-  const periodsForScope = periodMatch
-    ? periodInfo.filter((p) => p.id === periodMatch.id)
-    : periodInfo.filter((p) => periodIdsInScope.has(p.id));
-  const scopePeriods = periodsForScope.length > 0 ? periodsForScope : periodInfo;
+function scopePeriodsFor(params: {
+  deliveries: Array<typeof schema.deliveryRecords.$inferSelect>;
+  periodInfo: PeriodInfo[];
+  periodMatch: typeof schema.periods.$inferSelect | null;
+}) {
+  const periodIdsInScope = new Set(params.deliveries.map((d) => d.periodId));
+  const periodsForScope = params.periodMatch
+    ? params.periodInfo.filter((p) => p.id === params.periodMatch?.id)
+    : params.periodInfo.filter((p) => periodIdsInScope.has(p.id));
+  return periodsForScope.length > 0 ? periodsForScope : params.periodInfo;
+}
 
-  const deliveryInfo: DeliveryInfo[] = deliveries.map((d) => ({
+function toDeliveryInfoRows(
+  deliveries: Array<typeof schema.deliveryRecords.$inferSelect>,
+  periodSeedKeyById: Map<string, string>,
+): DeliveryInfo[] {
+  return deliveries.map((d) => ({
     id: d.id,
     carrierId: d.carrierId,
     periodId: d.periodId,
@@ -201,8 +219,10 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
     issueSignature: d.issueSignature,
     openedAtIso: toIsoString(d.openedAt),
   }));
+}
 
-  const evidenceCandidates: EvidenceCandidate[] = evidence.map((e) => ({
+function toEvidenceCandidates(evidence: Awaited<ReturnType<typeof loadEvidenceRows>>): EvidenceCandidate[] {
+  return evidence.map((e) => ({
     evidenceId: e.id,
     carrierId: e.carrierId,
     periodSeedKey: e.periodSeedKey,
@@ -217,6 +237,71 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
     issueSignature: e.issueSignature,
     isRepeat: e.isRepeat,
   }));
+}
+
+function incrementMap(map: Map<string, number>, key: string) {
+  map.set(key, (map.get(key) ?? 0) + 1);
+}
+
+function aggregateDeliveries(deliveryInfo: DeliveryInfo[]): ScorecardsSummaryReadModel["aggregates"] {
+  const delayReasonCounts = new Map<string, number>();
+  const regionCounts = new Map<string, number>();
+  const productCounts = new Map<string, number>();
+  const periodCounts = new Map<string, { completed: number; onTime: number; delayed: number }>();
+
+  for (const d of deliveryInfo) {
+    incrementMap(delayReasonCounts, d.delayReason);
+    incrementMap(regionCounts, d.region);
+    incrementMap(productCounts, d.productType);
+    updatePeriodCounts(periodCounts, d);
+  }
+
+  return {
+    delayReasons: sortedCountRows(delayReasonCounts, "delayReason"),
+    regions: sortedCountRows(regionCounts, "region"),
+    productTypes: sortedCountRows(productCounts, "productType"),
+    periods: Array.from(periodCounts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([period, b]) => ({ period, ...b })),
+  };
+}
+
+function updatePeriodCounts(
+  periodCounts: Map<string, { completed: number; onTime: number; delayed: number }>,
+  delivery: DeliveryInfo,
+) {
+  const bucket = periodCounts.get(delivery.periodSeedKey) ?? { completed: 0, onTime: 0, delayed: 0 };
+  if (delivery.stage === "completed") {
+    bucket.completed += 1;
+    if (delivery.delayDays === 0) bucket.onTime += 1;
+    else bucket.delayed += 1;
+  }
+  periodCounts.set(delivery.periodSeedKey, bucket);
+}
+
+function sortedCountRows<Key extends "delayReason" | "productType" | "region">(counts: Map<string, number>, key: Key) {
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ [key]: value, count })) as Array<Record<Key, string> & { count: number }>;
+}
+
+export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): Promise<ScorecardsSummaryReadModel> {
+  const f = normalizeFilters(filters);
+  assertScoreFilters(f);
+
+  const periods = await db.select().from(schema.periods);
+  const periodMatch = resolvePeriodMatch(periods, f);
+  const clauses = whereClauses(f, periodMatch?.id ?? null);
+  const deliveries = await loadDeliveries(db, clauses);
+  const carrierIds = Array.from(new Set(deliveries.map((d) => d.carrierId)));
+  const carriers = await loadCarriers(db, carrierIds);
+  const evidence = await loadEvidenceRows(db, carrierIds, clauses);
+  const carrierInfo = toCarrierInfoRows(carriers);
+  const periodInfo = toPeriodInfoRows(periods);
+  const periodSeedKeyById = new Map(periodInfo.map((p) => [p.id, p.seedKey]));
+  const scopePeriods = scopePeriodsFor({ deliveries, periodInfo, periodMatch });
+  const deliveryInfo = toDeliveryInfoRows(deliveries, periodSeedKeyById);
+  const evidenceCandidates = toEvidenceCandidates(evidence);
 
   const scored = buildCarrierScorecards({
     carriers: carrierInfo,
@@ -225,40 +310,6 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
     evidenceCandidates,
     filters: f,
   });
-
-  const delayReasonCounts = new Map<string, number>();
-  const regionCounts = new Map<string, number>();
-  const productCounts = new Map<string, number>();
-  const periodCounts = new Map<string, { completed: number; onTime: number; delayed: number }>();
-
-  for (const d of deliveryInfo) {
-    delayReasonCounts.set(d.delayReason, (delayReasonCounts.get(d.delayReason) ?? 0) + 1);
-    regionCounts.set(d.region, (regionCounts.get(d.region) ?? 0) + 1);
-    productCounts.set(d.productType, (productCounts.get(d.productType) ?? 0) + 1);
-
-    const bucket = periodCounts.get(d.periodSeedKey) ?? { completed: 0, onTime: 0, delayed: 0 };
-    if (d.stage === "completed") {
-      bucket.completed += 1;
-      if (d.delayDays === 0) bucket.onTime += 1;
-      else bucket.delayed += 1;
-    }
-    periodCounts.set(d.periodSeedKey, bucket);
-  }
-
-  const aggregates = {
-    delayReasons: Array.from(delayReasonCounts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([delayReason, count]) => ({ delayReason, count })),
-    regions: Array.from(regionCounts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([region, count]) => ({ region, count })),
-    productTypes: Array.from(productCounts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([productType, count]) => ({ productType, count })),
-    periods: Array.from(periodCounts.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([period, b]) => ({ period, ...b })),
-  };
 
   return {
     ok: true,
@@ -270,7 +321,7 @@ export async function readScorecardsSummary(db: DemoDb, filters: ScoreFilters): 
       deliveryRecords: deliveryInfo.length,
       evidenceItems: evidenceCandidates.length,
     },
-    aggregates,
+    aggregates: aggregateDeliveries(deliveryInfo),
     carriers: scored.scorecards,
   };
 }
@@ -338,41 +389,28 @@ export async function readCarrierDetail(
   };
 }
 
-export async function readEvidence(
-  db: DemoDb,
-  filters: ScoreFilters & {
-    dimension?: string | null;
-    delayReason?: string | null;
-    evidenceIds?: string[] | null;
-    cap?: number | null;
-  },
-): Promise<EvidenceReadModel> {
-  const f = normalizeFilters(filters);
-  assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
-  assertAllowedFilter({ field: "productType", value: f.productType, allowed: PRODUCT_TYPE_VALUES });
-  const dimension = filters.dimension ?? null;
-  const delayReason = filters.delayReason ?? null;
-  const rawIds = filters.evidenceIds ?? null;
-  const ids = rawIds && rawIds.length > 0 ? Array.from(new Set(rawIds)) : null;
-  const cap =
-    typeof filters.cap === "number" && Number.isFinite(filters.cap) && filters.cap > 0 ? Math.floor(filters.cap) : null;
+function normalizeEvidenceIds(rawIds: string[] | null | undefined) {
+  return rawIds && rawIds.length > 0 ? Array.from(new Set(rawIds)) : null;
+}
 
-  const periods = await db.select().from(schema.periods);
-  const periodMatch = f.period ? periods.find((p) => p.seedKey === f.period) : null;
-  if (f.period && !periodMatch) {
-    throw new InvalidFilterError({
-      field: "period",
-      value: f.period,
-      allowed: periods.map((p) => p.seedKey),
-    });
-  }
+function normalizeEvidenceCap(cap: number | null | undefined) {
+  return typeof cap === "number" && Number.isFinite(cap) && cap > 0 ? Math.floor(cap) : null;
+}
 
-  const clauses = whereClauses(f, periodMatch?.id ?? null);
-  const evidenceClauses: SQL[] = [...clauses];
-  if (dimension) evidenceClauses.push(eq(schema.evidenceItems.dimension, dimension));
-  if (delayReason) evidenceClauses.push(eq(schema.deliveryRecords.delayReason, delayReason));
-  if (ids && ids.length > 0) evidenceClauses.push(inArray(schema.evidenceItems.id, ids));
+function evidenceWhereClauses(params: {
+  baseClauses: SQL[];
+  delayReason: string | null;
+  dimension: string | null;
+  ids: string[] | null;
+}) {
+  const clauses = [...params.baseClauses];
+  if (params.dimension) clauses.push(eq(schema.evidenceItems.dimension, params.dimension));
+  if (params.delayReason) clauses.push(eq(schema.deliveryRecords.delayReason, params.delayReason));
+  if (params.ids && params.ids.length > 0) clauses.push(inArray(schema.evidenceItems.id, params.ids));
+  return clauses;
+}
 
+async function loadEvidenceReadRows(db: DemoDb, evidenceClauses: SQL[]) {
   const baseQuery = db
     .select({
       id: schema.evidenceItems.id,
@@ -400,7 +438,100 @@ export async function readEvidence(
     .innerJoin(schema.periods, eq(schema.periods.id, schema.evidenceItems.periodId))
     .innerJoin(schema.carriers, eq(schema.carriers.id, schema.evidenceItems.carrierId));
 
-  const rows = evidenceClauses.length ? await baseQuery.where(and(...evidenceClauses)) : await baseQuery;
+  return evidenceClauses.length ? await baseQuery.where(and(...evidenceClauses)) : await baseQuery;
+}
+
+type EvidenceReadRow = Awaited<ReturnType<typeof loadEvidenceReadRows>>[number];
+
+function stableById(a: EvidenceReadRow, b: EvidenceReadRow) {
+  return a.id.localeCompare(b.id);
+}
+
+function compareDesc(aValue: number, bValue: number, fallback: number) {
+  return aValue !== bValue ? bValue - aValue : fallback;
+}
+
+function compareEvidenceRows(params: {
+  a: EvidenceReadRow;
+  b: EvidenceReadRow;
+  delayReason: string | null;
+  dimension: string | null;
+}) {
+  const { a, b, delayReason, dimension } = params;
+  const fallback = stableById(a, b);
+  if (dimension === "delay_severity" || dimension === "commitment_adherence")
+    return compareDesc(a.delayDays, b.delayDays, fallback);
+  if (dimension === "responsiveness") return compareDesc(a.responsivenessHours, b.responsivenessHours, fallback);
+  if (dimension === "escalation_volume") return compareDesc(a.escalationCount, b.escalationCount, fallback);
+  if (dimension === "aging_open_commitments") return compareEvidenceAge(a, b, fallback);
+  if (dimension === "repeat_issue_concentration") return compareRepeatEvidence(a, b, fallback);
+  if (dimension === "completion_trend") return a.period !== b.period ? a.period.localeCompare(b.period) : fallback;
+  return delayReason ? compareDelayReasonEvidence(a, b, fallback) : fallback;
+}
+
+function compareEvidenceAge(a: EvidenceReadRow, b: EvidenceReadRow, fallback: number) {
+  const aMs = a.openedAt instanceof Date ? a.openedAt.getTime() : Date.parse(String(a.openedAt));
+  const bMs = b.openedAt instanceof Date ? b.openedAt.getTime() : Date.parse(String(b.openedAt));
+  return aMs !== bMs ? aMs - bMs : fallback;
+}
+
+function compareRepeatEvidence(a: EvidenceReadRow, b: EvidenceReadRow, fallback: number) {
+  if (Boolean(a.isRepeat) !== Boolean(b.isRepeat)) return a.isRepeat ? -1 : 1;
+  if (a.issueSignature !== b.issueSignature) return String(a.issueSignature).localeCompare(String(b.issueSignature));
+  return fallback;
+}
+
+function compareDelayReasonEvidence(a: EvidenceReadRow, b: EvidenceReadRow, fallback: number) {
+  if (a.delayDays !== b.delayDays) return b.delayDays - a.delayDays;
+  if (a.escalationCount !== b.escalationCount) return b.escalationCount - a.escalationCount;
+  if (a.responsivenessHours !== b.responsivenessHours) return b.responsivenessHours - a.responsivenessHours;
+  return fallback;
+}
+
+function toEvidenceItems(rows: EvidenceReadRow[]): EvidenceReadModel["items"] {
+  return rows.map((r) => ({
+    id: r.id,
+    dimension: r.dimension,
+    summary: r.summary,
+    carrierId: r.carrierId,
+    carrierName: r.carrierName,
+    period: r.period,
+    region: r.region as Region,
+    productType: r.productType as ProductType,
+    delayReason: r.delayReason,
+    committedDate: r.committedDate,
+    forecastDate: r.forecastDate ?? null,
+    completedDate: r.completedDate ?? null,
+    stage: r.stage,
+    responsivenessHours: r.responsivenessHours,
+    escalationCount: r.escalationCount,
+    delayDays: r.delayDays,
+  }));
+}
+
+export async function readEvidence(
+  db: DemoDb,
+  filters: ScoreFilters & {
+    dimension?: string | null;
+    delayReason?: string | null;
+    evidenceIds?: string[] | null;
+    cap?: number | null;
+  },
+): Promise<EvidenceReadModel> {
+  const f = normalizeFilters(filters);
+  assertAllowedFilter({ field: "region", value: f.region, allowed: REGION_VALUES });
+  assertAllowedFilter({ field: "productType", value: f.productType, allowed: PRODUCT_TYPE_VALUES });
+  const dimension = filters.dimension ?? null;
+  const delayReason = filters.delayReason ?? null;
+  const ids = normalizeEvidenceIds(filters.evidenceIds);
+  const cap = normalizeEvidenceCap(filters.cap);
+
+  const periods = await db.select().from(schema.periods);
+  const periodMatch = resolvePeriodMatch(periods, f);
+
+  const clauses = whereClauses(f, periodMatch?.id ?? null);
+  const evidenceClauses = evidenceWhereClauses({ baseClauses: clauses, delayReason, dimension, ids });
+  const rows = await loadEvidenceReadRows(db, evidenceClauses);
 
   const scope = buildCarrierScorecards({
     carriers: [],
@@ -420,49 +551,7 @@ export async function readEvidence(
   const returnedIds = new Set(rows.map((r) => r.id));
   const missingEvidenceIds = requestedIds.filter((id) => !returnedIds.has(id));
 
-  // Deterministic sort: for known score dimensions, align with evidence-selection severity ordering.
-  // Fall back to stable id ordering for unrecognized dimensions.
-  const sorted = [...rows].sort((a, b) => {
-    const dim = dimension ?? null;
-    if (dim === "delay_severity" || dim === "commitment_adherence") {
-      if (a.delayDays !== b.delayDays) return b.delayDays - a.delayDays;
-      return a.id.localeCompare(b.id);
-    }
-    if (dim === "responsiveness") {
-      if (a.responsivenessHours !== b.responsivenessHours) return b.responsivenessHours - a.responsivenessHours;
-      return a.id.localeCompare(b.id);
-    }
-    if (dim === "escalation_volume") {
-      if (a.escalationCount !== b.escalationCount) return b.escalationCount - a.escalationCount;
-      return a.id.localeCompare(b.id);
-    }
-    if (dim === "aging_open_commitments") {
-      // Oldest first.
-      const aMs = a.openedAt instanceof Date ? a.openedAt.getTime() : Date.parse(String(a.openedAt));
-      const bMs = b.openedAt instanceof Date ? b.openedAt.getTime() : Date.parse(String(b.openedAt));
-      if (aMs !== bMs) return aMs - bMs;
-      return a.id.localeCompare(b.id);
-    }
-    if (dim === "repeat_issue_concentration") {
-      // Prefer repeats first, then stable issue signature grouping.
-      if (Boolean(a.isRepeat) !== Boolean(b.isRepeat)) return a.isRepeat ? -1 : 1;
-      if (a.issueSignature !== b.issueSignature)
-        return String(a.issueSignature).localeCompare(String(b.issueSignature));
-      return a.id.localeCompare(b.id);
-    }
-    if (dim === "completion_trend") {
-      if (a.period !== b.period) return a.period.localeCompare(b.period);
-      return a.id.localeCompare(b.id);
-    }
-    if (!dim && delayReason) {
-      // Delay-reason proof: prioritize largest misses, then escalation/responsiveness, then stable id.
-      if (a.delayDays !== b.delayDays) return b.delayDays - a.delayDays;
-      if (a.escalationCount !== b.escalationCount) return b.escalationCount - a.escalationCount;
-      if (a.responsivenessHours !== b.responsivenessHours) return b.responsivenessHours - a.responsivenessHours;
-      return a.id.localeCompare(b.id);
-    }
-    return a.id.localeCompare(b.id);
-  });
+  const sorted = [...rows].sort((a, b) => compareEvidenceRows({ a, b, delayReason, dimension }));
 
   const totalItems = sorted.length;
   const visible = cap ? sorted.slice(0, cap) : sorted;
@@ -476,23 +565,6 @@ export async function readEvidence(
       cap,
       missingEvidenceIds,
     },
-    items: visible.map((r) => ({
-      id: r.id,
-      dimension: r.dimension,
-      summary: r.summary,
-      carrierId: r.carrierId,
-      carrierName: r.carrierName,
-      period: r.period,
-      region: r.region as Region,
-      productType: r.productType as ProductType,
-      delayReason: r.delayReason,
-      committedDate: r.committedDate,
-      forecastDate: r.forecastDate ?? null,
-      completedDate: r.completedDate ?? null,
-      stage: r.stage,
-      responsivenessHours: r.responsivenessHours,
-      escalationCount: r.escalationCount,
-      delayDays: r.delayDays,
-    })),
+    items: toEvidenceItems(visible),
   };
 }

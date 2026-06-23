@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 import type { DemoDb } from "@/lib/db/ensure-schema";
 import { schema } from "@/lib/db/schema";
-import type { ProductType, Region } from "@/lib/db/demo-values";
+import type { ProductType, Region } from "@/lib/domain/demo-values";
 import { readEvidence, readScorecardsSummary } from "@/lib/scoring/read-models";
 import type { CarrierScorecard, ScoreFilters, ScoreMetric, ScoringComponentId } from "@/lib/scoring/types";
 
