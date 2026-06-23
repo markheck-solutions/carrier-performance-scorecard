@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 type Finding = {
@@ -108,6 +108,16 @@ function redactSample(value: string): string {
   return redacted.length > 180 ? `${redacted.slice(0, 177)}...` : redacted;
 }
 
+function readCandidateFile(filePath: string): string | null {
+  try {
+    return readFileSync(filePath, "utf8");
+  } catch (error: unknown) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "EISDIR" || code === "EPERM" || code === "EACCES") return null;
+    throw error;
+  }
+}
+
 const root = process.cwd();
 const findings: Finding[] = [];
 
@@ -116,11 +126,9 @@ for (const relativeFilePath of listCandidateFiles(root)) {
   if (!shouldScan(normalized)) continue;
 
   const absoluteFilePath = path.join(root, normalized);
-  if (!existsSync(absoluteFilePath)) continue;
-  const stat = statSync(absoluteFilePath);
-  if (!stat.isFile()) continue;
-
-  const lines = readFileSync(absoluteFilePath, "utf8").split(/\r?\n/);
+  const content = readCandidateFile(absoluteFilePath);
+  if (content === null) continue;
+  const lines = content.split(/\r?\n/);
   lines.forEach((line, index) => {
     debtMarkerPattern.lastIndex = 0;
     const match = debtMarkerPattern.exec(line);

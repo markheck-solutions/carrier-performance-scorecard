@@ -3,15 +3,14 @@ import "server-only";
 import type { QbrBriefSections } from "./public";
 
 const EM_DASH_RE = /[\u2014\u2015\u2013]/g;
-const HTML_TAG_RE = /<\/?[^>]+>/g;
+const SECTION_KEYS = ["strengths", "concerns", "questions", "governanceActions"] as const;
 
 function normalizeWhitespace(text: string) {
   return text.replaceAll(/\s+/g, " ").trim();
 }
 
-function stripMarkup(text: string) {
-  // Keep it simple and safe: remove any HTML tags.
-  return text.replaceAll(HTML_TAG_RE, "");
+function removeHtmlControlChars(text: string) {
+  return text.replaceAll("<", "").replaceAll(">", "");
 }
 
 function redactSecretLooking(text: string) {
@@ -23,7 +22,7 @@ function redactSecretLooking(text: string) {
 }
 
 function sanitizeText(text: string) {
-  const stripped = stripMarkup(text).replaceAll(EM_DASH_RE, "-");
+  const stripped = removeHtmlControlChars(text).replaceAll(EM_DASH_RE, "-");
   return normalizeWhitespace(redactSecretLooking(stripped));
 }
 
@@ -39,23 +38,26 @@ function asStringArray(value: unknown): string[] | null {
   return out;
 }
 
+function hasOnlyAllowedSectionKeys(obj: Record<string, unknown>) {
+  return Object.keys(obj).every((key) => (SECTION_KEYS as readonly string[]).includes(key));
+}
+
+function readSections(obj: Record<string, unknown>): QbrBriefSections | null {
+  const sections = {
+    strengths: asStringArray(obj.strengths),
+    concerns: asStringArray(obj.concerns),
+    questions: asStringArray(obj.questions),
+    governanceActions: asStringArray(obj.governanceActions),
+  };
+  return Object.values(sections).every((items) => items && items.length > 0) ? (sections as QbrBriefSections) : null;
+}
+
 export function coerceBriefSections(value: unknown): QbrBriefSections | null {
   if (!value || typeof value !== "object") return null;
   const obj = value as Record<string, unknown>;
   // Fail closed if provider returns unexpected top-level keys. This prevents extra sections
   // from surfacing without an explicit allowlist change.
-  const allowedKeys = ["strengths", "concerns", "questions", "governanceActions"];
-  for (const key of Object.keys(obj)) {
-    if (!allowedKeys.includes(key)) return null;
-  }
-  const strengths = asStringArray(obj.strengths);
-  const concerns = asStringArray(obj.concerns);
-  const questions = asStringArray(obj.questions);
-  const governanceActions = asStringArray(obj.governanceActions);
-  if (!strengths || !concerns || !questions || !governanceActions) return null;
-  if (strengths.length === 0 || concerns.length === 0 || questions.length === 0 || governanceActions.length === 0)
-    return null;
-  return { strengths, concerns, questions, governanceActions };
+  return hasOnlyAllowedSectionKeys(obj) ? readSections(obj) : null;
 }
 
 export function extractJsonFromText(raw: string): unknown | null {
