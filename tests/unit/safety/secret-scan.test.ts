@@ -20,6 +20,17 @@ function isBinary(content: string) {
   return content.includes("\u0000");
 }
 
+function readTrackedText(abs: string) {
+  try {
+    return readFileSync(abs, "utf8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 function allowlisted(kind: string, sample: string, file: string, contextLine: string) {
   const s = sample.toLowerCase();
   if (kind === "openai_key_like") {
@@ -63,7 +74,8 @@ describe("secret scan (VAL-SAFE-011)", () => {
     const findings: Finding[] = [];
     for (const rel of tracked) {
       const abs = path.join(repoRoot, rel);
-      const content = readFileSync(abs, "utf8");
+      const content = readTrackedText(abs);
+      if (content === null) continue;
       if (isBinary(content)) continue;
 
       for (const rule of RULES) {
