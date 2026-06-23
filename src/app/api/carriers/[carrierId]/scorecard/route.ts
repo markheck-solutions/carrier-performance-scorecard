@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getServerDb } from "@/lib/db/server-db";
-import { parseScoreFiltersFromUrl } from "@/lib/scoring/filter-parse";
+import { parseRequiredCarrierId, parseScoreFiltersFromUrl } from "@/lib/scoring/filter-parse";
 import { isInvalidFilterError } from "@/lib/scoring/invalid-filter";
 import { readCarrierDetail } from "@/lib/scoring/read-models";
 import { captureServerError } from "@/lib/observability/sentry-server";
@@ -10,7 +10,8 @@ export const runtime = "nodejs";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ carrierId: string }> }) {
   try {
-    const { carrierId } = await context.params;
+    const params = await context.params;
+    const carrierId = parseRequiredCarrierId(params.carrierId);
     const url = new URL(request.url);
     const filters = parseScoreFiltersFromUrl(url);
     const { db } = getServerDb();

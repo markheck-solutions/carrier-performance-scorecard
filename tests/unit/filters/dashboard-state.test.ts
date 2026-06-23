@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildDashboardQueryString, parseDashboardStateFromSearchParams } from "@/lib/filters/dashboard-state";
 
 describe("dashboard state URL parsing", () => {
+  const carrierA = "6d1f6ed0-26b9-4a2d-a1e0-2d5dcbf5b2f1";
+  const carrierB = "bbd1dc33-25c9-4d8f-b234-3a5a6d7d9f0c";
+
   it("treats missing or blank values as null", () => {
     const params = new URLSearchParams("carrierId=&region=%20%20&productType=&period=");
     const { state, issues } = parseDashboardStateFromSearchParams(params);
@@ -32,7 +35,7 @@ describe("dashboard state URL parsing", () => {
   it("sanitizes unknown carrier ids when allowlists are provided", () => {
     const params = new URLSearchParams("carrierId=unknown&selectedCarrierId=also-unknown");
     const { state, issues } = parseDashboardStateFromSearchParams(params, {
-      allowedCarrierIds: ["c1", "c2"],
+      allowedCarrierIds: [carrierA, carrierB],
     });
 
     expect(state.filters.carrierId).toBeNull();
@@ -78,22 +81,24 @@ describe("dashboard state URL parsing", () => {
 
   it("round-trips query building for non-null values", () => {
     const query = buildDashboardQueryString({
-      filters: { carrierId: "c1", region: "na", productType: "fiber", period: "2026-06" },
-      selectedCarrierId: "c1",
+      filters: { carrierId: carrierA, region: "na", productType: "fiber", period: "2026-06" },
+      selectedCarrierId: carrierA,
       evidenceId: "e-1",
       evidenceDimension: null,
       evidenceDelayReason: null,
     });
 
-    expect(query).toBe("?carrierId=c1&region=na&productType=fiber&period=2026-06&selectedCarrierId=c1&evidenceId=e-1");
+    expect(query).toBe(
+      `?carrierId=${carrierA}&region=na&productType=fiber&period=2026-06&selectedCarrierId=${carrierA}&evidenceId=e-1`,
+    );
 
     const { state, issues } = parseDashboardStateFromSearchParams(new URLSearchParams(query.slice(1)));
     expect(issues).toEqual([]);
     expect(state.filters.region).toBe("na");
     expect(state.filters.productType).toBe("fiber");
     expect(state.filters.period).toBe("2026-06");
-    expect(state.filters.carrierId).toBe("c1");
-    expect(state.selectedCarrierId).toBe("c1");
+    expect(state.filters.carrierId).toBe(carrierA);
+    expect(state.selectedCarrierId).toBe(carrierA);
     expect(state.evidenceId).toBe("e-1");
     expect(state.evidenceDimension).toBeNull();
     expect(state.evidenceDelayReason).toBeNull();

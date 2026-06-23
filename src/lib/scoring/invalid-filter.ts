@@ -1,4 +1,4 @@
-export type InvalidFilterField = "region" | "productType" | "period";
+export type InvalidFilterField = "carrierId" | "region" | "productType" | "period";
 
 export type InvalidFilterDetails = {
   field: InvalidFilterField;

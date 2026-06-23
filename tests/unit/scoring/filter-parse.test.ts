@@ -32,4 +32,19 @@ describe("parseScoreFiltersFromUrl", () => {
     const url = new URL("http://example.test/api/scorecards/summary?productType=satellite");
     expect(() => parseScoreFiltersFromUrl(url)).toThrow(InvalidFilterError);
   });
+
+  it("rejects malformed carrierId values before they reach UUID queries", () => {
+    const url = new URL("http://example.test/api/scorecards/summary?carrierId=not-a-real-carrier");
+    expect(() => parseScoreFiltersFromUrl(url)).toThrow(InvalidFilterError);
+
+    try {
+      parseScoreFiltersFromUrl(url);
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidFilterError);
+      const e = err as InvalidFilterError;
+      expect(e.code).toBe("INVALID_FILTER");
+      expect(e.details.field).toBe("carrierId");
+      expect(e.details.value).toBe("not-a-real-carrier");
+    }
+  });
 });

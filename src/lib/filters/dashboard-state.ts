@@ -1,4 +1,5 @@
 import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/domain/demo-values";
+import { hasCarrierIdFormat } from "@/lib/scoring/carrier-id";
 import { SCORE_MANIFEST } from "@/lib/scoring/manifest";
 import type { ScoreFilters, ScoringComponentId } from "@/lib/scoring/types";
 
@@ -48,6 +49,7 @@ function reject(issues: DashboardSanitizeIssue[], issue: DashboardSanitizeIssue)
 
 function parseCarrierFilter(raw: string | null, opts: ParseOptions | undefined, issues: DashboardSanitizeIssue[]) {
   if (!raw) return null;
+  if (!hasCarrierIdFormat(raw)) return reject(issues, { kind: "invalid_carrierId", value: raw });
   return opts?.allowedCarrierIds && !opts.allowedCarrierIds.includes(raw)
     ? reject(issues, { kind: "invalid_carrierId", value: raw })
     : raw;
