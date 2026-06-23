@@ -5,15 +5,22 @@ test("filters update comparison and URL; back/forward restores state", async ({ 
 
   await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
   await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
+  await expect(page.getByTestId("comparison-card").first()).toBeVisible({ timeout: 10_000 });
 
   // Apply a region filter.
-  await page.getByLabel("Region").selectOption("emea");
+  const regionSelect = page.getByLabel("Region", { exact: true });
+  await expect(regionSelect).toBeEnabled();
+  await regionSelect.selectOption("emea");
+  await expect(regionSelect).toHaveValue("emea");
 
   // URL should include the filter.
   await expect(page).toHaveURL(/region=emea/);
 
   // Apply a product filter.
-  await page.getByLabel("Product type").selectOption("fiber");
+  const productTypeSelect = page.getByLabel("Product type", { exact: true });
+  await expect(productTypeSelect).toBeEnabled();
+  await productTypeSelect.selectOption("fiber");
+  await expect(productTypeSelect).toHaveValue("fiber");
   await expect(page).toHaveURL(/region=emea/);
   await expect(page).toHaveURL(/productType=fiber/);
 
@@ -381,6 +388,11 @@ test("invalid deep link parameters are sanitized safely", async ({ page }) => {
   await expect(page).not.toHaveURL(/region=moon/);
   await expect(page).not.toHaveURL(/productType=satellite/);
   await expect(page).not.toHaveURL(/period=2099-01/);
+
+  await page.goto("/?carrierId=not-a-real-carrier");
+  await expect(page.getByRole("heading", { name: /carrier performance intelligence scorecard/i })).toBeVisible();
+  await expect(page.getByText(/carrier link or filter value was not recognized and was reset/i)).toBeVisible();
+  await expect(page).not.toHaveURL(/carrierId=not-a-real-carrier/);
 });
 
 test("valid deep links restore selection and evidence state", async ({ page }) => {
@@ -441,10 +453,6 @@ test("failing filter options request shows retryable state", async ({ page }) =>
 test("failing summary request shows retryable comparison error", async ({ page }) => {
   // Fail exactly one scoped summary request so the retry button can deterministically recover.
   let failedScopedOnce = false;
-  await page.goto("/");
-  await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
-
-  // Fail the first summary fetch triggered by the EMEA filter change.
   await page.route("**/api/scorecards/summary**", async (route) => {
     const url = new URL(route.request().url());
     const isScoped = url.searchParams.get("region") === "emea";
@@ -460,7 +468,10 @@ test("failing summary request shows retryable comparison error", async ({ page }
     });
   });
 
-  await page.getByLabel("Region").selectOption("emea");
+  // Deep-link to the scoped URL so this test does not depend on select-option timing.
+  await page.goto("/?region=emea");
+  await expect(page).toHaveURL(/region=emea/);
+  await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
   const err = page.getByText(/unable to load scorecards for this scope/i).first();
   await expect(err).toBeVisible();
 
@@ -726,7 +737,7 @@ test("existing carrier with zero records shows no-record guidance; unknown carri
   await expect(page.getByRole("button", { name: /broaden scope/i })).toBeVisible();
 
   // Unknown carrier deep link should render a distinct not-found state with safe recovery.
-  await page.goto("/?selectedCarrierId=00000000-0000-0000-0000-000000000000");
+  await page.goto("/?selectedCarrierId=00000000-0000-4000-8000-000000000000");
   await expect(page.getByText(/unknown carrier/i)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /return to overview/i })).toBeVisible();
 });

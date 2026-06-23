@@ -23,7 +23,7 @@ Usage:
   node scripts/ci_monitor.cjs log-failed <run-id>
   node scripts/ci_monitor.cjs test-summary <run-id>
   node scripts/ci_monitor.cjs check-actions [file]
-  node scripts/ci_monitor.cjs grep <run-id> --pattern <regex>
+  node scripts/ci_monitor.cjs grep <run-id> --pattern <text>
   node scripts/ci_monitor.cjs wait-for <run-id> <job> --keyword <text>
 
 Commands:
@@ -33,7 +33,7 @@ Commands:
   log-failed    Print failed logs for a workflow run.
   test-summary  Print job names, statuses, and conclusions.
   check-actions Print action refs found in workflow YAML uses: lines.
-  grep          Print log lines that match a regular expression.
+  grep          Print log lines that contain literal text.
   wait-for      Poll a job log until a keyword appears or timeout expires.`;
 
   const writer = exitCode === 0 ? console.log : console.error;
@@ -295,36 +295,31 @@ function handleCheckActions(args) {
 
 function parsePatternArgs(args) {
   if (args.length !== 3 || args[1] !== "--pattern" || args[0].startsWith("-") || !args[2]) {
-    failWithUsage("grep requires <run-id> --pattern <regex>.");
+    failWithUsage("grep requires <run-id> --pattern <text>.");
   }
 
-  try {
-    return {
-      pattern: new RegExp(args[2]),
-      runId: args[0],
-    };
-  } catch (error) {
-    console.error(`Error: Invalid regular expression: ${error.message}`);
-    process.exit(1);
-  }
+  return {
+    patternText: args[2],
+    runId: args[0],
+  };
 }
 
 function handleGrep(args) {
-  const { pattern, runId } = parsePatternArgs(args);
+  const { patternText, runId } = parsePatternArgs(args);
   const result = runGh(["run", "view", runId, "--log"]);
   exitOnGhFailure(result, "fetch workflow logs");
 
   let matches = 0;
   const lines = (result.stdout || "").split(/\r?\n/);
   for (const [index, line] of lines.entries()) {
-    if (pattern.test(line)) {
+    if (line.includes(patternText)) {
       matches += 1;
       console.log(`${index + 1}: ${line}`);
     }
   }
 
   if (matches === 0) {
-    console.log(`No log lines matched pattern ${pattern}.`);
+    console.log(`No log lines contained text ${JSON.stringify(patternText)}.`);
   }
 }
 

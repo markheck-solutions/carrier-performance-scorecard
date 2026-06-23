@@ -1,4 +1,4 @@
-import type { ProductType, Region } from "../db/demo-values";
+import type { ProductType, Region } from "../domain/demo-values";
 import type { ScoringComponentId } from "./types";
 
 export const DEFAULT_EVIDENCE_CAP = 3;

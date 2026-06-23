@@ -11,8 +11,12 @@ import type {
   ScoreScope,
   ScoringComponentId,
 } from "@/lib/scoring/types";
-import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/db/demo-values";
-import { buildDashboardQueryString, parseDashboardStateFromSearchParams } from "@/lib/filters/dashboard-state";
+import { PRODUCT_TYPE_VALUES, REGION_VALUES, type ProductType, type Region } from "@/lib/domain/demo-values";
+import {
+  buildDashboardQueryString,
+  parseDashboardStateFromSearchParams,
+  type DashboardState,
+} from "@/lib/filters/dashboard-state";
 import { addSentryBreadcrumb, sentryRequestHeaders } from "@/lib/observability/sentry-client";
 
 import { ExecutiveDashboard, type RuntimePosture } from "./ExecutiveDashboard";
@@ -138,6 +142,23 @@ function formatMetric(component: ScoreComponentResult | null) {
   return `${Math.round(metric.value)}`;
 }
 
+const comparisonGradeTone: Record<CarrierScorecard["grade"], string> = {
+  A: "bg-emerald-500/15 text-emerald-100 ring-emerald-400/20",
+  B: "bg-teal-500/15 text-teal-100 ring-teal-400/20",
+  C: "bg-sky-500/15 text-sky-100 ring-sky-400/20",
+  D: "bg-amber-500/15 text-amber-100 ring-amber-400/20",
+  F: "bg-rose-500/15 text-rose-100 ring-rose-400/20",
+};
+
+function trendLabelFor(component: ScoreComponentResult | null) {
+  const value = component?.metric.kind === "scalar" ? component.metric.value : null;
+  if (component?.dataQuality.availability !== "ok" || value === null) return "Unknown";
+  if (value >= 0.05) return "Improving";
+  if (value <= -0.05) return "Declining";
+  if (value <= -0.02) return "Watch";
+  return "Stable";
+}
+
 function issueNote(issues: ReturnType<typeof parseDashboardStateFromSearchParams>["issues"]) {
   if (issues.length === 0) return null;
   const first = issues[0]!;
@@ -151,6 +172,69 @@ function issueNote(issues: ReturnType<typeof parseDashboardStateFromSearchParams
   if (first.kind === "conflicting_evidenceScope")
     return "This proof link contained conflicting parameters and was reset to a single evidence scope.";
   return "Some URL parameters were not recognized and were reset.";
+}
+
+function displaySummary(state: LoadState<ScorecardsSummaryModel>) {
+  if (state.status === "ready") return state.data;
+  if (state.status === "loading") return state.previous ?? null;
+  return null;
+}
+
+function evidenceIsOpen(state: ReturnType<typeof parseDashboardStateFromSearchParams>["state"]) {
+  return Boolean(state.evidenceId || state.evidenceDimension || state.evidenceDelayReason);
+}
+
+function summaryMatchesFilters(summary: ScorecardsSummaryModel | null, filters: ScoreFilters) {
+  if (!summary) return false;
+  const scoped = summary.scope.filters;
+  return [
+    scoped.carrierId === filters.carrierId,
+    scoped.region === filters.region,
+    scoped.productType === filters.productType,
+    scoped.period === filters.period,
+  ].every(Boolean);
+}
+
+function isDashboardSettled(params: {
+  detailReady: boolean;
+  evidenceReady: boolean;
+  optionsReady: boolean;
+  summaryReady: boolean;
+}) {
+  return [params.optionsReady, params.summaryReady, params.detailReady, params.evidenceReady].every(Boolean);
+}
+
+type EvidenceMode = "delayReason" | "dimension" | "id";
+
+function evidenceModeFromState(state: DashboardState): EvidenceMode | null {
+  if (state.evidenceId) return "id";
+  if (state.evidenceDimension) return "dimension";
+  if (state.evidenceDelayReason) return "delayReason";
+  return null;
+}
+
+function buildEvidenceSearchParams(params: {
+  evidenceCarrierId: string | null;
+  filters: ScoreFilters;
+  mode: EvidenceMode;
+  state: DashboardState;
+}) {
+  const filterParams = new URLSearchParams(
+    buildFiltersQuery({ ...params.filters, carrierId: params.evidenceCarrierId }).slice(1),
+  );
+  if (params.mode === "id") filterParams.set("evidenceIds", params.state.evidenceId as string);
+  if (params.mode === "dimension") filterParams.set("dimension", params.state.evidenceDimension as string);
+  if (params.mode === "delayReason") filterParams.set("delayReason", params.state.evidenceDelayReason as string);
+  if (params.mode !== "id") filterParams.set("cap", "18");
+  return filterParams;
+}
+
+function evidenceFailureMessage(payload: EvidenceReadModel) {
+  return payload.ok ? "Unable to load evidence right now." : payload.error.message;
+}
+
+function shouldResetMissingEvidence(mode: EvidenceMode, payload: EvidenceReadModel) {
+  return mode === "id" && payload.ok && payload.items.length === 0;
 }
 
 function FilterSelect(props: {
@@ -223,28 +307,8 @@ function ComparisonCard(props: {
   const topProduct = props.scorecard.mix.productTypes[0] ?? null;
 
   const pct = Math.min(100, Math.max(0, props.scorecard.totalScore));
-
-  const gradeTone =
-    props.scorecard.grade === "A"
-      ? "bg-emerald-500/15 text-emerald-100 ring-emerald-400/20"
-      : props.scorecard.grade === "B"
-        ? "bg-teal-500/15 text-teal-100 ring-teal-400/20"
-        : props.scorecard.grade === "C"
-          ? "bg-sky-500/15 text-sky-100 ring-sky-400/20"
-          : props.scorecard.grade === "D"
-            ? "bg-amber-500/15 text-amber-100 ring-amber-400/20"
-            : "bg-rose-500/15 text-rose-100 ring-rose-400/20";
-
-  const trendLabel =
-    trend?.dataQuality.availability !== "ok"
-      ? "Unknown"
-      : trend && trend.metric.kind === "scalar" && trend.metric.value >= 0.05
-        ? "Improving"
-        : trend && trend.metric.kind === "scalar" && trend.metric.value <= -0.05
-          ? "Declining"
-          : trend && trend.metric.kind === "scalar" && trend.metric.value <= -0.02
-            ? "Watch"
-            : "Stable";
+  const gradeTone = comparisonGradeTone[props.scorecard.grade];
+  const trendLabel = trendLabelFor(trend);
 
   return (
     <button
@@ -1142,19 +1206,14 @@ export function ExecutiveDashboardInteractive(props: {
   // Fetch evidence when evidence state changes.
   const evidenceRequestSeq = useRef(0);
   useEffect(() => {
-    const mode = state.evidenceId
-      ? "id"
-      : state.evidenceDimension
-        ? "dimension"
-        : state.evidenceDelayReason
-          ? "delayReason"
-          : null;
+    const mode = evidenceModeFromState(state);
     if (!mode) return;
+    const requestMode = mode;
 
     const requestId = ++evidenceRequestSeq.current;
     const controller = new AbortController();
     const requestKey = JSON.stringify({
-      mode,
+      mode: requestMode,
       evidenceId: state.evidenceId ?? null,
       evidenceDimension: state.evidenceDimension ?? null,
       evidenceDelayReason: state.evidenceDelayReason ?? null,
@@ -1165,13 +1224,12 @@ export function ExecutiveDashboardInteractive(props: {
     async function run() {
       setEvidenceState({ status: "loading", requestKey });
       try {
-        const filterParams = new URLSearchParams(
-          buildFiltersQuery({ ...stableFilters, carrierId: evidenceCarrierId }).slice(1),
-        );
-        if (mode === "id") filterParams.set("evidenceIds", state.evidenceId as string);
-        if (mode === "dimension") filterParams.set("dimension", state.evidenceDimension as string);
-        if (mode === "delayReason") filterParams.set("delayReason", state.evidenceDelayReason as string);
-        if (mode !== "id") filterParams.set("cap", "18");
+        const filterParams = buildEvidenceSearchParams({
+          evidenceCarrierId,
+          filters: stableFilters,
+          mode: requestMode,
+          state,
+        });
         const res = await fetch(`/api/evidence?${filterParams.toString()}`, {
           headers: sentryRequestHeaders(),
           signal: controller.signal,
@@ -1184,18 +1242,15 @@ export function ExecutiveDashboardInteractive(props: {
             message: "Evidence request failed",
             level: "warning",
             type: "http",
-            data: { status: res.status, mode },
+            data: { status: res.status, mode: requestMode },
           });
-          const message =
-            (payload as { ok: false; error: { message: string } }).error?.message ??
-            "Unable to load evidence right now.";
-          setEvidenceState({ status: "error", requestKey, message });
+          setEvidenceState({ status: "error", requestKey, message: evidenceFailureMessage(payload) });
           return;
         }
 
         // If a specific evidence id was requested but not found, treat it as a filtered-out or missing reference.
         // Close it (safe recoverable behavior) and surface a banner.
-        if (mode === "id" && payload.items.length === 0) {
+        if (shouldResetMissingEvidence(requestMode, payload)) {
           updateUrl({ evidenceId: null, evidenceDimension: null, evidenceDelayReason: null }, { mode: "replace" });
           setTransientBanner("That proof link is not available in the current scope.");
           return;
@@ -1210,7 +1265,7 @@ export function ExecutiveDashboardInteractive(props: {
           message: "Evidence request threw",
           level: "error",
           type: "http",
-          data: { errorName: (err as { name?: string }).name ?? "unknown", mode },
+          data: { errorName: (err as { name?: string }).name ?? "unknown", mode: requestMode },
         });
         setEvidenceState({ status: "error", requestKey, message: "Unable to load evidence right now." });
       }
@@ -1224,6 +1279,7 @@ export function ExecutiveDashboardInteractive(props: {
     state.evidenceDelayReason,
     state.evidenceDimension,
     state.evidenceId,
+    state,
     stableFilters,
     updateUrl,
   ]);
@@ -1244,13 +1300,7 @@ export function ExecutiveDashboardInteractive(props: {
   }, [detailState, stableFilters, state.selectedCarrierId]);
 
   const effectiveEvidenceState = useMemo<LoadState<EvidenceReadModel>>(() => {
-    const mode = state.evidenceId
-      ? "id"
-      : state.evidenceDimension
-        ? "dimension"
-        : state.evidenceDelayReason
-          ? "delayReason"
-          : null;
+    const mode = evidenceModeFromState(state);
     if (!mode) return { status: "idle" };
     const requestKey = JSON.stringify({
       mode,
@@ -1268,21 +1318,9 @@ export function ExecutiveDashboardInteractive(props: {
       return { status: "ready", data: evidenceState.data };
     // Evidence scope changed: show loading instead of stale proof items.
     return { status: "loading" };
-  }, [
-    evidenceCarrierId,
-    evidenceState,
-    state.evidenceDelayReason,
-    state.evidenceDimension,
-    state.evidenceId,
-    stableFilters,
-  ]);
+  }, [evidenceCarrierId, evidenceState, state, stableFilters]);
 
-  const summary =
-    summaryState.status === "ready"
-      ? summaryState.data
-      : summaryState.status === "loading"
-        ? (summaryState.previous ?? null)
-        : null;
+  const summary = displaySummary(summaryState);
 
   const carriersInScope = summary?.carriers ?? [];
 
@@ -1312,17 +1350,12 @@ export function ExecutiveDashboardInteractive(props: {
     return buildActiveFilterPills({ filters: state.filters, carrierLabel, periodLabel });
   }, [optionsModel, state.filters]);
 
-  const evidenceOpen = Boolean(state.evidenceId || state.evidenceDimension || state.evidenceDelayReason);
+  const evidenceOpen = evidenceIsOpen(state);
   const optionsReady = optionsState.status === "ready" && optionsState.data.ok;
-  const summaryReady =
-    summaryState.status === "ready" &&
-    summaryState.data.scope.filters.carrierId === stableFilters.carrierId &&
-    summaryState.data.scope.filters.region === stableFilters.region &&
-    summaryState.data.scope.filters.productType === stableFilters.productType &&
-    summaryState.data.scope.filters.period === stableFilters.period;
+  const summaryReady = summaryState.status === "ready" && summaryMatchesFilters(summaryState.data, stableFilters);
   const detailReady = !state.selectedCarrierId || effectiveDetailState.status === "ready";
   const evidenceReady = !evidenceOpen || effectiveEvidenceState.status === "ready";
-  const dashboardSettled = optionsReady && summaryReady && detailReady && evidenceReady;
+  const dashboardSettled = isDashboardSettled({ detailReady, evidenceReady, optionsReady, summaryReady });
 
   return (
     <div className="relative flex-1 bg-[#07080A] text-white" data-testid="dashboard-root">

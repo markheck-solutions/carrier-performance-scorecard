@@ -244,6 +244,52 @@ describe("/api/qbr/brief", () => {
     fetchSpy.mockRestore();
   });
 
+  it("removes HTML control characters from accepted local-provider sections (VAL-QBR-024)", async () => {
+    const { db } = createTestDb();
+    const dataset = await seed(db);
+    installRouteDb(db);
+
+    process.env.NEXT_PUBLIC_DEMO_MODE = "false";
+    process.env.AI_PROVIDER = "local";
+    process.env.OPENAI_COMPATIBLE_BASE_URL = "http://local.test/v1";
+    process.env.OPENAI_COMPATIBLE_API_KEY = "sk-test-redacted";
+    process.env.OPENAI_COMPATIBLE_MODEL = "local-model";
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                strengths: ["<script>alert(1)</script> strong delivery trend"],
+                concerns: ["<b>watch</b> repeat issues"],
+                questions: ["Can <carrier> explain outliers?"],
+                governanceActions: ["Confirm <owner> and cadence"],
+              }),
+            },
+          },
+        ],
+      }),
+    } as unknown as Response);
+
+    const req = new NextRequest("http://example.test/api/qbr/brief", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ carrierId: dataset.carriers[0]!.id }),
+    });
+
+    const res = await postQbr(req);
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.ok).toBe(true);
+    expect(payload.provider.id).toBe("local");
+    expect(JSON.stringify(payload.brief)).not.toMatch(/[<>]/);
+    expect(payload.brief.strengths[0]).toContain("scriptalert(1)/script strong delivery trend");
+
+    fetchSpy.mockRestore();
+  });
+
   it("sends only compact safe context to the local provider and never includes the API key (VAL-QBR-018, VAL-QBR-025)", async () => {
     const { db } = createTestDb();
     const dataset = await seed(db);

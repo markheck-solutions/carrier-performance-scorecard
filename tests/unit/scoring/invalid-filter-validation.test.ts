@@ -89,6 +89,38 @@ describe("invalid scoring filters never broaden scope", () => {
     );
   });
 
+  it("returns controlled 400 INVALID_FILTER for malformed carrierId on summary API", async () => {
+    const { db } = createTestDb();
+    await seed(db);
+    installRouteDb(db);
+
+    const response = await getSummary(
+      new NextRequest("http://example.test/api/scorecards/summary?carrierId=not-a-real-carrier"),
+    );
+    expect(response.status).toBe(400);
+
+    const payload = await response.json();
+    expect(payload.error?.code).toBe("INVALID_FILTER");
+    expect(payload.error?.details?.field).toBe("carrierId");
+  });
+
+  it("returns controlled 400 INVALID_FILTER for malformed carrierId path values", async () => {
+    const { db } = createTestDb();
+    await seed(db);
+    installRouteDb(db);
+
+    const carrierId = "not-a-real-carrier";
+    const response = await getCarrierScorecard(
+      new NextRequest(`http://example.test/api/carriers/${carrierId}/scorecard`),
+      { params: Promise.resolve({ carrierId }) },
+    );
+
+    expect(response.status).toBe(400);
+    const payload = await response.json();
+    expect(payload.error?.code).toBe("INVALID_FILTER");
+    expect(payload.error?.details?.field).toBe("carrierId");
+  });
+
   it("returns controlled 400 INVALID_FILTER for invalid productType on carrier scorecard API", async () => {
     const { db } = createTestDb();
     const dataset = await seed(db);

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServerDb } from "@/lib/db/server-db";
 import { isInvalidFilterError } from "@/lib/scoring/invalid-filter";
-import type { Region, ProductType } from "@/lib/db/demo-values";
-import { REGION_VALUES, PRODUCT_TYPE_VALUES } from "@/lib/db/demo-values";
+import type { Region, ProductType } from "@/lib/domain/demo-values";
+import { REGION_VALUES, PRODUCT_TYPE_VALUES } from "@/lib/domain/demo-values";
 import type { ScoreFilters } from "@/lib/scoring/types";
 import { buildQbrSafeContextV1, isQbrInvalidCarrierError } from "@/lib/qbr/context";
 import { generateQbrBrief } from "@/lib/qbr/generate";

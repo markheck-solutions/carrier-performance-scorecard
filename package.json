@@ -24,14 +24,16 @@
     "agents:verify": "tsx scripts/quality/agents-verify.ts",
     "naming:check": "tsx scripts/quality/naming-check.ts",
     "complexity:check": "tsx scripts/quality/complexity-check.ts",
+    "architecture:check": "tsx scripts/quality/import-boundary-check.ts",
     "queries:check": "tsx scripts/quality/query-pattern-check.ts",
+    "sql:check": "tsx scripts/quality/sql-supportability-check.ts",
     "bundle:check": "tsx scripts/quality/bundle-size-check.ts",
     "build:performance": "tsx scripts/quality/build-performance-check.ts",
     "test:performance": "tsx scripts/quality/test-performance-check.ts",
     "release-notes:check": "tsx scripts/quality/release-notes-check.ts",
     "dependency-age:check": "tsx scripts/quality/dependency-age-policy-check.ts",
     "stale-flags:check": "tsx scripts/quality/stale-feature-flag-check.ts",
-    "quality:check": "npm run format:check && npm run deadcode:check && npm run duplicates:check && npm run large-files:check && npm run debt:check && npm run agents:verify && npm run naming:check && npm run complexity:check && npm run queries:check && npm run bundle:check && npm run build:performance && npm run test:performance && npm run release-notes:check && npm run dependency-age:check && npm run stale-flags:check && npm run readme:verify && npm run safety",
+    "quality:check": "npm run format:check && npm run deadcode:check && npm run duplicates:check && npm run large-files:check && npm run debt:check && npm run agents:verify && npm run naming:check && npm run complexity:check && npm run architecture:check && npm run queries:check && npm run sql:check && npm run bundle:check && npm run build:performance && npm run test:performance && npm run release-notes:check && npm run dependency-age:check && npm run stale-flags:check && npm run readme:verify && npm run safety",
     "prepare": "husky"
   },
   "dependencies": {
