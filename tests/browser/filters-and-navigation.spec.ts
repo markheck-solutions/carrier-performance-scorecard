@@ -441,10 +441,6 @@ test("failing filter options request shows retryable state", async ({ page }) =>
 test("failing summary request shows retryable comparison error", async ({ page }) => {
   // Fail exactly one scoped summary request so the retry button can deterministically recover.
   let failedScopedOnce = false;
-  await page.goto("/");
-  await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
-
-  // Fail the first summary fetch triggered by the EMEA filter change.
   await page.route("**/api/scorecards/summary**", async (route) => {
     const url = new URL(route.request().url());
     const isScoped = url.searchParams.get("region") === "emea";
@@ -460,7 +456,10 @@ test("failing summary request shows retryable comparison error", async ({ page }
     });
   });
 
-  await page.getByLabel("Region").selectOption("emea");
+  // Deep-link to the scoped URL so this test does not depend on select-option timing.
+  await page.goto("/?region=emea");
+  await expect(page).toHaveURL(/region=emea/);
+  await expect(page.getByRole("region", { name: /scope filters/i })).toBeVisible();
   const err = page.getByText(/unable to load scorecards for this scope/i).first();
   await expect(err).toBeVisible();
 
