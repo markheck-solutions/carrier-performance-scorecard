@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "behaviorProof": {
+    "command": "npm run test -- tests/unit/demo-data/seed-and-schema.test.ts tests/unit/scoring/scoring-engine.test.ts tests/unit/scoring/evidence-edgecases.test.ts --run",
+    "files": [
+      "tests/unit/demo-data/seed-and-schema.test.ts",
+      "tests/unit/scoring/scoring-engine.test.ts",
+      "tests/unit/scoring/evidence-edgecases.test.ts"
+    ]
+  },
+  "allowedSqlFiles": [],
+  "rawSqlBaselines": [
+    {
+      "file": "src/app/api/demo-data/route.ts",
+      "kind": "sql-template",
+      "count": 4,
+      "sha256": "1db09ffb93d11637db661860881117bdedf6a254069ae0351c89531a730e0588"
+    },
+    {
+      "file": "src/lib/db/ensure-schema.ts",
+      "kind": "sql-raw",
+      "count": 4,
+      "sha256": "e3cfe6be390861127141f6f25b6dce5ca70349896003d30ef7ac555ac2b9d576"
+    },
+    {
+      "file": "src/lib/db/ensure-schema.ts",
+      "kind": "sql-template",
+      "count": 6,
+      "sha256": "946129f273f56fa9da2599a6cd8a6fbd8c8eb12d1829c5e1e03e288fbd0460f0"
+    },
+    {
+      "file": "src/lib/db/schema.ts",
+      "kind": "sql-raw",
+      "count": 1,
+      "sha256": "ac7482def92d1488af8a6fbf0efb07a7631b219387052a0fcf9743da87c3be67"
+    },
+    {
+      "file": "src/lib/db/schema.ts",
+      "kind": "sql-template",
+      "count": 14,
+      "sha256": "6ccf97235262c73b15f8e2d617732fdd6d9f6483ab3a9f10e00585d2e5b6c660"
+    },
+    {
+      "file": "src/lib/seed/seed-demo-data.ts",
+      "kind": "sql-template",
+      "count": 34,
+      "sha256": "8f573911eb32841a4c2fba7accbea0e4afe23ba6cc829e179e0a17a49a09ea12"
+    },
+    {
+      "file": "tests/unit/demo-data/seed-and-schema.test.ts",
+      "kind": "sql-template",
+      "count": 28,
+      "sha256": "d941e327debabbfde1409a043fda683eafe8f5268244c15b86478f4cd1df3583"
+    }
+  ],
+  "sinkBaselines": [
+    {
+      "file": "src/app/api/demo-data/route.ts",
+      "kind": "db.execute",
+      "count": 4
+    },
+    {
+      "file": "src/app/api/demo-data/route.ts",
+      "kind": "db.select",
+      "count": 1
+    },
+    {
+      "file": "src/app/api/scorecards/options/route.ts",
+      "kind": "db.select",
+      "count": 2
+    },
+    {
+      "file": "src/lib/db/ensure-schema.ts",
+      "kind": "db.execute",
+      "count": 10
+    },
+    {
+      "file": "src/lib/qbr/context.ts",
+      "kind": "db.select",
+      "count": 1
+    },
+    {
+      "file": "src/lib/scoring/read-models.ts",
+      "kind": "db.select",
+      "count": 8
+    },
+    {
+      "file": "src/lib/seed/seed-demo-data.ts",
+      "kind": "db.execute",
+      "count": 2
+    },
+    {
+      "file": "src/lib/seed/seed-demo-data.ts",
+      "kind": "tx.insert",
+      "count": 5
+    },
+    {
+      "file": "tests/unit/api/api-route-inventory.test.ts",
+      "kind": "db.select",
+      "count": 8
+    },
+    {
+      "file": "tests/unit/demo-data/seed-and-schema.test.ts",
+      "kind": "db.execute",
+      "count": 28
+    },
+    {
+      "file": "tests/unit/demo-data/seed-and-schema.test.ts",
+      "kind": "db.insert",
+      "count": 6
+    },
+    {
+      "file": "tests/unit/qbr/api-brief-route.test.ts",
+      "kind": "db.select",
+      "count": 4
+    },
+    {
+      "file": "tests/unit/scoring/evidence-edgecases.test.ts",
+      "kind": "db.insert",
+      "count": 2
+    }
+  ]
+}
